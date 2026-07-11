@@ -69,7 +69,7 @@ const deleteClassAssignment:RequestHandler=catchAsync(async(req , res)=>{
 const createClassMaterials:RequestHandler=catchAsync(async(req , res)=>{
 
 
-    const result=await AssignmentsServices.createClassMaterialsIntoDb(req.body, req.user.id);
+    const result=await AssignmentsServices.createClassMaterialsIntoDb(req.body, req.user.id, req.user.subscriptionId);
      sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,

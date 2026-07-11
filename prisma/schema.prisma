@@ -560,6 +560,7 @@ model SubmitAssignmentFile {
 
 model ClassMaterial {
   id                  String            @id @default(uuid())
+  assignmentTitle        String ?
   materialType        ClassMaterialType
   description         String?
   materialFiles       String[]          @default([])

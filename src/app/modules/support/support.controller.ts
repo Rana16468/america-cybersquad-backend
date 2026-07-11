@@ -8,7 +8,7 @@ import httpStatus from "http-status";
 
 const sendSupportMessage:RequestHandler=catchAsync(async(req  , res)=>{
 
-      const result=await SupportServices.sendSupportMessageIntoDb(req.user.id , req.user.role,  req.body);
+      const result=await SupportServices.sendSupportMessageIntoDb(req.user.id , req.user.role, req.user.subscriptionId,  req.body);
     sendResponse(res, {
       statusCode: httpStatus.CREATED,
       success: true,

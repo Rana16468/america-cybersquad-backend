@@ -991,10 +991,11 @@ const teacherAttendanceDataIntoDb = async (
 };
 
 const onlineClassRecordedOfTeachersIntoDb = async (
-  payload: Partial<ClassRecordedOfTeachers>
+  payload: Partial<ClassRecordedOfTeachers>,
+  subscriptionId: string
 ): Promise<{ success: boolean; message: string }> => {
   try {
-    const { subscriptionId, classDistributionId, link } = payload;
+    const {  classDistributionId, link } = payload;
 
     if (!subscriptionId || !classDistributionId || !link) {
       throw new ApiError(
@@ -1010,10 +1011,12 @@ const onlineClassRecordedOfTeachersIntoDb = async (
 
     if (!isExistSubscription) {
       throw new ApiError(httpStatus.NOT_FOUND, "Subscription not found");
-    }
+    };
 
+
+    
     const classData = await prisma.classDistribution.findUnique({
-      where: { id: classDistributionId,isOnline:false },
+      where: { id: classDistributionId,isOnline:true, },
       
       select: {
          isOnline: true,
@@ -1022,6 +1025,7 @@ const onlineClassRecordedOfTeachersIntoDb = async (
         },
       }
     });
+
 
 
 

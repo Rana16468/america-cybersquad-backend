@@ -59,7 +59,8 @@ const updateAssignmentSchema = z.object({
 
 const createClassMaterialSchema= z.object({
     body: z.object({
-      subscriptionId: z.string({required_error:"subscriptionId is required"}),
+      // subscriptionId: z.string({required_error:"subscriptionId is required"}),
+      assignmentTitle: z.string({required_error:"materialName is required"}),
       classDistributionId: z.string({required_error:"classDistributionId is required"}),
        materialType: z.enum([materialType.materialLink,materialType.materialPDF, materialType.materialVideo, materialType.materialWord]),
       description: z.string({required_error:"description is not required"}).optional(),

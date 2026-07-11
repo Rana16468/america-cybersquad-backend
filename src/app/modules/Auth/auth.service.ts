@@ -439,6 +439,8 @@ const refreshTokenIntoDb = async (token: string) => {
             status: true,
           },
         });
+
+        console.log("student account ", user)
         email = user?.email;
         break;
 
@@ -559,6 +561,7 @@ const myProfileIntoDb = async (id: string, role: string) => {
           select: {
             name: true,
             email: true,
+            isVerified: true,
             branchName: true,
             className: true,
             guardianName: true,
@@ -598,6 +601,7 @@ const myProfileIntoDb = async (id: string, role: string) => {
             name: true,
             email: true,
             role: true,
+            
             phoneNumber: true,
             generateId: true,
             isVerified: true,
@@ -638,8 +642,14 @@ interface ProfileUpdatePayload {
   location?: string;
   city?: string;
   country?: string;
-  photo?: string; // URL or file path
-  address?: string
+  address?: string;
+
+  // Student
+  className?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+
+  photo?: string;
 }
 
 interface ProfileUpdateResponse {
@@ -652,60 +662,64 @@ interface ProfileUpdateResponse {
   role: string;
   status: string;
   createdAt: Date;
+  className?: string;
+
 }
 
-const changeMyProfileIntoDb = async (req: RequestWithFile, id: string, role: string) => {
+const changeMyProfileIntoDb = async (
+  req: RequestWithFile,
+  id: string,
+  role: string,
+) => {
   try {
     const file = req.file;
 
     const {
       name,
       phoneNumber,
-      location,
       city,
       country,
       address,
+      className,
+      guardianName,
+      guardianPhone,
     } = req.body as ProfileUpdatePayload;
 
-    let updateData: any = {};
+    let photo: string | undefined;
 
-    // build dynamic update payload
-    if (name) updateData.name = name;
-    if (phoneNumber) updateData.phoneNumber = phoneNumber;
-    if (location) updateData.location = location;
-    if (city) updateData.city = city;
-    if (country) updateData.country = country;
-    if(address) updateData.address=address
-
-  
-
-    // upload file safely
     if (file) {
-      const { secure_url } = (await uploadFile.uploadToCloudinary(file)) as any;
-      updateData.photo = secure_url;
+      const { secure_url } = await uploadFile.uploadToCloudinary(file) as any;
+      photo = secure_url;
     }
 
-    if (Object.keys(updateData).length === 0) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "No data provided for update",
-        ""
-      );
-    }
-
-    let updatedUser: any;
+    let user: any = null;
 
     switch (role) {
+      /**
+       * SUPER ADMIN / OWNER / ADMIN
+       */
+      case UserRole.SUPER_ADMIN:
       case UserRole.INSTITUTIONAL_OWNER:
-      case UserRole.ADMIN:
-        updatedUser = await prisma.user.update({
+      case UserRole.ADMIN: {
+        const data: any = {};
+
+        if (name) data.name = name;
+        if (phoneNumber) data.phoneNumber = phoneNumber;
+        if (city) data.city = city;
+        if (country) data.country = country;
+        if (address) data.address = address;
+        if (photo) data.photo = photo;
+
+        user = await prisma.user.update({
           where: { id },
-          data: updateData,
+          data,
           select: {
             name: true,
             email: true,
             city: true,
             country: true,
+            state: true,
+            schoolName: true,
             isVerified: true,
             photo: true,
             role: true,
@@ -713,12 +727,23 @@ const changeMyProfileIntoDb = async (req: RequestWithFile, id: string, role: str
             createdAt: true,
           },
         });
-        break;
 
-      case UserRole.BRANCH_ADMIN:
-        updatedUser = await prisma.branchAdmin.update({
+        break;
+      }
+
+      /**
+       * BRANCH ADMIN
+       */
+      case UserRole.BRANCH_ADMIN: {
+        const data: any = {};
+
+        if (name) data.fullName = name;
+        if (phoneNumber) data.phoneNumber = phoneNumber;
+        if (photo) data.photo = photo;
+
+        user = await prisma.branchAdmin.update({
           where: { id },
-          data: updateData,
+          data,
           select: {
             fullName: true,
             emailAddress: true,
@@ -731,12 +756,25 @@ const changeMyProfileIntoDb = async (req: RequestWithFile, id: string, role: str
             createdAt: true,
           },
         });
-        break;
 
-      case UserRole.STUDENT:
-        updatedUser = await prisma.student.update({
+        break;
+      }
+
+      /**
+       * STUDENT
+       */
+      case UserRole.STUDENT: {
+        const data: any = {};
+
+        if (name) data.name = name;
+        if (className) data.className = className;
+        if (guardianName) data.guardianName = guardianName;
+        if (guardianPhone) data.guardianPhone = guardianPhone;
+        if (photo) data.photo = photo;
+
+        user = await prisma.student.update({
           where: { id },
-          data: updateData,
+          data,
           select: {
             name: true,
             email: true,
@@ -746,29 +784,36 @@ const changeMyProfileIntoDb = async (req: RequestWithFile, id: string, role: str
             guardianPhone: true,
             isVerified: true,
             photo: true,
-            role: true,
             status: true,
             createdAt: true,
           },
         });
-        break;
 
-      case UserRole.TEACHER:
-      {
-         
-          updateData.teacherName=name;
-          delete updateData.name;
-           console.log("update date", updateData);
-          updatedUser = await prisma.teacher.update({
+        break;
+      }
+
+      /**
+       * TEACHER
+       */
+      case UserRole.TEACHER: {
+        const data: any = {};
+
+        if (name) data.teacherName = name;
+        if (phoneNumber) data.phoneNumber = phoneNumber;
+        if (address) data.address = address;
+        if (photo) data.photo = photo;
+
+        user = await prisma.teacher.update({
           where: { id },
-          data: updateData,
+          data,
           select: {
-            teacherName: true, 
+            teacherName: true,
             email: true,
             phoneNumber: true,
             branchName: true,
             subject: true,
             assignClass: true,
+            teacherId: true,
             address: true,
             isVerified: true,
             photo: true,
@@ -776,38 +821,68 @@ const changeMyProfileIntoDb = async (req: RequestWithFile, id: string, role: str
             createdAt: true,
           },
         });
+
         break;
       }
 
+      /**
+       * NURSE / PARENT
+       */
       case UserRole.NURSE:
-        updatedUser = await prisma.staff.update({
+      case UserRole.parent: {
+        const data: any = {};
+
+        if (name) data.name = name;
+        if (phoneNumber) data.phoneNumber = phoneNumber;
+        if (photo) data.photo = photo;
+
+        user = await prisma.staff.update({
           where: { id },
-          data: updateData,
+          data,
           select: {
             name: true,
             email: true,
-            phoneNumber: true,
             role: true,
+            phoneNumber: true,
+            generateId: true,
             isVerified: true,
             photo: true,
             status: true,
             createdAt: true,
           },
         });
+
         break;
+      }
 
       default:
-        throw new ApiError(httpStatus.FORBIDDEN, "Invalid role", "");
+        throw new ApiError(httpStatus.FORBIDDEN, "Invalid user role", "");
     }
 
-    if (!updatedUser) {
+    if (!user) {
       throw new ApiError(httpStatus.NOT_FOUND, "User not found", "");
+    }
+
+    if (!user.isVerified) {
+      throw new ApiError(
+        httpStatus.FORBIDDEN,
+        "Please verify your account",
+        "",
+      );
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new ApiError(
+        httpStatus.FORBIDDEN,
+        "User access denied",
+        "",
+      );
     }
 
     return {
       status: true,
       message: "Profile updated successfully",
-      data: updatedUser,
+      data: user,
     };
   } catch (error) {
     catchError(error);

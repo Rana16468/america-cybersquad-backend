@@ -12,6 +12,7 @@ import { UserRole } from "@prisma/client";
 const sendSupportMessageIntoDb = async (
   userId: string,
   role: string,
+  subscriptionId: string,
   payload: TSupport
 ) => {
   try {
@@ -22,7 +23,7 @@ const sendSupportMessageIntoDb = async (
 
     const result = await prisma.$transaction(async (tx) => {
       const subscription = await tx.subscriptions.findUnique({
-        where: { id: payload.subscriptionId },
+        where: { id: subscriptionId },
         select: {
           userId: true,
           branchAdmins: {
@@ -45,7 +46,7 @@ const sendSupportMessageIntoDb = async (
         case UserRole.BRANCH_ADMIN: {
           supportResult = await tx.support.create({
             data: {
-              subscriptionId: payload.subscriptionId,
+              subscriptionId: subscriptionId,
               name: payload.name,
               email: payload.email,
               subject: payload.subject,
@@ -61,7 +62,7 @@ const sendSupportMessageIntoDb = async (
               title: payload.subject,
               message: shortMessage,
               userId: subscription.userId,
-              subscriptionId: payload.subscriptionId,
+              subscriptionId: subscriptionId,
               isDelete: false,
             },
           });
@@ -73,7 +74,7 @@ const sendSupportMessageIntoDb = async (
         case UserRole.INSTITUTIONAL_OWNER: {
           supportResult = await tx.support.create({
             data: {
-              subscriptionId: payload.subscriptionId,
+              subscriptionId: subscriptionId,
               name: payload.name,
               email: payload.email,
               subject: payload.subject,
@@ -90,7 +91,7 @@ const sendSupportMessageIntoDb = async (
                   title: payload.subject,
                   message: shortMessage,
                   branchAdminId: admin.id,
-                  subscriptionId: payload.subscriptionId,
+                  subscriptionId: subscriptionId,
                   isDelete: false,
                 },
               })
@@ -106,7 +107,7 @@ const sendSupportMessageIntoDb = async (
         case UserRole.TEACHER: {
           supportResult = await tx.support.create({
             data: {
-              subscriptionId: payload.subscriptionId,
+              subscriptionId: subscriptionId,
               name: payload.name,
               email: payload.email,
               subject: payload.subject,
@@ -124,7 +125,7 @@ const sendSupportMessageIntoDb = async (
                   title: payload.subject,
                   message: shortMessage,
                   branchAdminId: admin.id,
-                  subscriptionId: payload.subscriptionId,
+                  subscriptionId: subscriptionId,
                   isDelete: false,
                 },
               })
@@ -137,7 +138,7 @@ const sendSupportMessageIntoDb = async (
                 title: payload.subject,
                 message: shortMessage,
                 userId: subscription.userId,
-                subscriptionId: payload.subscriptionId,
+                subscriptionId: subscriptionId,
                 isDelete: false,
               },
             });
@@ -152,7 +153,7 @@ const sendSupportMessageIntoDb = async (
 
           supportResult = await tx.support.create({
             data: {
-              subscriptionId: payload.subscriptionId,
+              subscriptionId: subscriptionId,
               name: payload.name,
               email: payload.email,
               subject: payload.subject,
@@ -170,7 +171,7 @@ const sendSupportMessageIntoDb = async (
                   title: payload.subject,
                   message: shortMessage,
                   branchAdminId: admin.id,
-                  subscriptionId: payload.subscriptionId,
+                  subscriptionId: subscriptionId,
                   isDelete: false,
                 },
               })
@@ -184,7 +185,7 @@ const sendSupportMessageIntoDb = async (
                 title: payload.subject,
                 message: shortMessage,
                 userId: subscription.userId,
-                subscriptionId: payload.subscriptionId,
+                subscriptionId: subscriptionId,
                 isDelete: false,
               },
             });
@@ -197,7 +198,7 @@ const sendSupportMessageIntoDb = async (
 
            supportResult = await tx.support.create({
             data: {
-              subscriptionId: payload.subscriptionId,
+              subscriptionId: subscriptionId,
               name: payload.name,
               email: payload.email,
               subject: payload.subject,
@@ -215,7 +216,7 @@ const sendSupportMessageIntoDb = async (
                   title: payload.subject,
                   message: shortMessage,
                   branchAdminId: admin.id,
-                  subscriptionId: payload.subscriptionId,
+                  subscriptionId: subscriptionId,
                   isDelete: false,
                 },
               })
@@ -229,7 +230,7 @@ const sendSupportMessageIntoDb = async (
                 title: payload.subject,
                 message: shortMessage,
                 userId: subscription.userId,
-                subscriptionId: payload.subscriptionId,
+                subscriptionId: subscriptionId,
                 isDelete: false,
               },
             });
@@ -264,7 +265,7 @@ const sendSupportMessageIntoDb = async (
     const io = getSocketIO() as any;
 
     const subscription = await prisma.subscriptions.findUnique({
-      where: { id: payload.subscriptionId },
+      where: { id: subscriptionId },
       select: {
         userId: true,
         branchAdmins: { select: { id: true } },

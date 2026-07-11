@@ -2,9 +2,9 @@ import { z } from "zod";
 
  const createSupportSchema = z.object({
   body: z.object({
-    subscriptionId: z
-      .string({ required_error: "subscriptionId is required" })
-      .min(1, "subscriptionId cannot be empty"),
+    // subscriptionId: z
+    //   .string({ required_error: "subscriptionId is required" })
+    //   .min(1, "subscriptionId cannot be empty"),
 
     name: z
       .string({ required_error: "name is required" })

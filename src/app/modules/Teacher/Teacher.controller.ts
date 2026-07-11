@@ -157,7 +157,7 @@ const createTeacher:RequestHandler = catchAsync(async (req, res) => {
 
           const onlineClassRecordedOfTeachers:RequestHandler = catchAsync(async (req, res) => {
 
-              const result = await TeacherService.onlineClassRecordedOfTeachersIntoDb(req.body);
+              const result = await TeacherService.onlineClassRecordedOfTeachersIntoDb(req.body, req.user.subscriptionId);
                 sendResponse(res, {
                     statusCode: httpStatus.OK,
                     success: true,

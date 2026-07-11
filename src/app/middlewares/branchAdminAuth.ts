@@ -43,7 +43,7 @@ const branchAdminAuth = (...roles: string[]) => {
               isVerified: true,
               status: UserStatus.ACTIVE,
             },
-            select: { id: true },
+            select: { id: true, subscriptions: true },
           });
           break;
         }
@@ -51,7 +51,7 @@ const branchAdminAuth = (...roles: string[]) => {
         case UserRole.BRANCH_ADMIN: {
           user = await prisma.branchAdmin.findUnique({
             where: { id: verifiedUser.id },
-            select: { id: true },
+            select: { id: true , subscriptionId: true},
           });
           break;
         }
@@ -59,7 +59,7 @@ const branchAdminAuth = (...roles: string[]) => {
 
           user=await prisma.student.findUnique({
             where:{id:verifiedUser.id, isVerified:true},
-            select:{id:true}
+            select:{id:true, subscriptionId:true}
           });
 
         }break;
@@ -68,7 +68,7 @@ const branchAdminAuth = (...roles: string[]) => {
 
           user=await prisma.staff.findUnique({
             where:{id:verifiedUser.id},
-            select:{id:true}
+            select:{id:true, subscriptionId:true}
           });
 
         }break; 

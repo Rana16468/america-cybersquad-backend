@@ -4,7 +4,7 @@ import catchError from "../../../errors/catchError";
 import prisma from "../../../shared/prisma";
 import { TAssignments, TMaterials } from "./assignments.interface";
 import { getSocketIO } from "../../../socket/connectSocket";
-import { UserRole } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import PrismaQueryBuilder from "../../builder/PrismaQueryBuilder";
 import { deleteByPattern, deleteCache, getCache, setCache } from "../../../config/redis";
 import { searchableAssignment } from "./assignments.constant";
@@ -53,6 +53,16 @@ const createAssignmentsIntoDb = async (
         "Class distribution not found"
       );
     }
+
+    console.log({
+          assignmentTitle: payload.assignmentTitle,
+          assignmentType: payload.assignmentType,
+          assignmentDueDate: payload.assignmentDueDate,
+          description: payload.description,
+          attachmentFiles: payload.attachmentFiles ?? [],
+          classDistributionId: payload.classDistributionId,
+          subscriptionId,
+        })
 
     await prisma.$transaction(async (tx) => {
       await tx.classAssignment.create({
@@ -116,20 +126,21 @@ const findBySpecificTeacherAssignmentIntoDb = async (
   query: Record<string, unknown>
 ) => {
   try {
-    const cacheKey = `teacher-assignments:${teacherId}:${JSON.stringify(
-      query
-    )}`;
+    // const cacheKey = `teacher- :${teacherId}:${JSON.stringify(
+    //   query
+    // )}`;
 
-    const cachedData = await getCache(cacheKey);
+    // const cachedData = await getCache(cacheKey);
 
-    if (cachedData) {
-      return cachedData;
-    }
+    // if (cachedData) {
+    //   return cachedData;
+    // }
 
     // Remove custom query params before PrismaQueryBuilder
     const {
       status,
       assignmentType,
+      classLevel,
       fromDate,
       toDate,
       ...restQuery
@@ -145,25 +156,16 @@ const findBySpecificTeacherAssignmentIntoDb = async (
 
     const extraFilter: Record<string, any> = {};
 
-    // Assignment Type
+    // Assignment Type (Enum)
     if (assignmentType) {
       extraFilter.assignmentType = assignmentType;
     }
 
     // Status Filter
-    switch (status) {
-      case "completed":
-        extraFilter.assessmentAvailable = true;
-        break;
-
-      case "active":
-        extraFilter.assessmentAvailable = false;
-        break;
-
-      case "all":
-      default:
-        // No filter
-        break;
+    if (status === "completed") {
+      extraFilter.assessmentAvailable = true;
+    } else if (status === "active") {
+      extraFilter.assessmentAvailable = false;
     }
 
     // Date Filter
@@ -171,33 +173,41 @@ const findBySpecificTeacherAssignmentIntoDb = async (
       extraFilter.assignmentDueDate = {};
 
       if (fromDate) {
-        extraFilter.assignmentDueDate.gte = new Date(
-          fromDate as string
-        );
+        extraFilter.assignmentDueDate.gte = new Date(fromDate as string);
       }
 
       if (toDate) {
-        extraFilter.assignmentDueDate.lte = new Date(
-          toDate as string
-        );
+        extraFilter.assignmentDueDate.lte = new Date(toDate as string);
       }
     }
 
+    // Relation Filter
+    const classDistributionFilter: Record<string, any> = {
+      teacherId,
+    };
+
+    if (classLevel) {
+      classDistributionFilter.classLevel = classLevel;
+    }
+
     const whereCondition = {
-      classDistributions: {
-        teacherId,
-      },
+      classDistributions: classDistributionFilter,
 
       ...queryOptions.where,
+
       ...extraFilter,
     };
 
     const [assignments, total] = await prisma.$transaction([
       prisma.classAssignment.findMany({
         where: whereCondition,
+
         orderBy: queryOptions.orderBy,
+
         skip: queryOptions.skip,
+
         take: queryOptions.take,
+
         select: {
           id: true,
           assignmentTitle: true,
@@ -236,7 +246,7 @@ const findBySpecificTeacherAssignmentIntoDb = async (
       data: assignments,
     };
 
-    await setCache(cacheKey, response, 600);
+    // await setCache(cacheKey, response, 600);
 
     return response;
   } catch (error) {
@@ -379,14 +389,15 @@ const deleteClassAssignmentIntoDb = async (
 
 const createClassMaterialsIntoDb = async (
   payload: TMaterials,
-  teacherId: string
+  teacherId: string,
+  subscriptionId: string
 ) => {
   try {
     const isExistClassDistributionId =
       await prisma.classDistribution.findFirst({
         where: {
           id: payload.classDistributionId,
-          subscriptionId: payload.subscriptionId,
+          subscriptionId,
           teacherId,
         },
         select: {
@@ -413,8 +424,7 @@ const createClassMaterialsIntoDb = async (
     }
 
     if (
-      (!payload.materialFiles ||
-        payload.materialFiles.length < 1) &&
+      (!payload.materialFiles || payload.materialFiles.length < 1) &&
       !payload.external_link
     ) {
       throw new ApiError(
@@ -423,108 +433,64 @@ const createClassMaterialsIntoDb = async (
       );
     }
 
-    const result = await prisma.$transaction(
-      async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      const createdMaterial = await tx.classMaterial.create({
+        data: {
+          subscriptionId,
+          classDistributionId: payload.classDistributionId!,
+          assignmentTitle:payload.assignmentTitle,
+          materialType: payload.materialType,
+          description: payload.description,
+          materialFiles: payload.materialFiles || [],
+          external_link: payload.external_link,
+        },
+      });
 
-        const createdMaterial =
-          await tx.classMaterial.create({
-            data: {
-              subscriptionId:
-                payload.subscriptionId!,
-
-              classDistributionId:
-                payload.classDistributionId!,
-
-              materialType:payload.materialType,
-
-              description:
-                payload.description,
-
-              materialFiles:
-                payload.materialFiles || [],
-
-              external_link:
-                payload.external_link,
-            },
-          });
-
-        if (
-          isExistClassDistributionId.students
-            ?.length
-        ) {
-
-          await tx.notification.createMany({
-            data:
-              isExistClassDistributionId.students.map(
-                (student) => ({
-                  title:
-                    "📚 New Material Added",
-
-                  message:
-                    "A new class material has been uploaded.",
-
-                  studentId: student.id,
-
-                  subscriptionId:
-                    payload.subscriptionId!,
-                })
-              ),
-          });
-        }
-
-        return createdMaterial;
+      if (isExistClassDistributionId.students?.length) {
+        await tx.notification.createMany({
+          data: isExistClassDistributionId.students.map((student) => ({
+            title: "📚 New Material Added",
+            message: "A new class material has been uploaded.",
+            studentId: student.id,
+            subscriptionId,
+          })),
+        });
       }
-    );
+
+      return createdMaterial;
+    });
 
     const io = getSocketIO() as any;
 
     const notificationPayload = {
       id: Date.now(),
-
       title: "📚 New Material Added",
-
-      message:
-        "A new class material has been uploaded.",
-
+      message: "A new class material has been uploaded.",
       createdBy: UserRole.TEACHER,
-
       timestamp: new Date().toISOString(),
     };
 
-    // ✅ Class Room Notification
-    io.to(
-      `class::${payload.classDistributionId}`
-    ).emit(
+    // Class Room Notification
+    io.to(`class::${payload.classDistributionId}`).emit(
       "notification",
       notificationPayload
     );
 
-    // ✅ Individual Students Notification
-    if (
-      isExistClassDistributionId.students
-        ?.length
-    ) {
-
-      isExistClassDistributionId.students.forEach(
-        (student) => {
-
-          io.to(`user::${student.id}`).emit(
-            "notification",
-            notificationPayload
-          );
-        }
-      );
+    // Individual Student Notifications
+    if (isExistClassDistributionId.students?.length) {
+      isExistClassDistributionId.students.forEach((student) => {
+        io.to(`user::${student.id}`).emit(
+          "notification",
+          notificationPayload
+        );
+      });
     }
 
-    return  result && {
+    return {
       status: true,
-
-      message:
-        "Class material uploaded successfully"
+      message: "Class material uploaded successfully",
     };
-
   } catch (error) {
-
     throw catchError(error);
   }
 };
@@ -535,78 +501,117 @@ const findBySpecificTeacherClassMaterialsIntoDb = async (
   query: Record<string, unknown>
 ) => {
   try {
+    // const cacheKey = `teacher-materials:${teacherId}:${classDistributionId}:${encodeURIComponent(
+    //   JSON.stringify(query)
+    // )}`;
 
-    const cacheKey = `teacher-materials:${teacherId}:${classDistributionId}:${encodeURIComponent(
-      JSON.stringify(query)
-    )}`;
+    // const cachedData = await getCache(cacheKey);
 
-    const cachedData = await getCache(cacheKey);
-    if (cachedData) return cachedData;
+    // if (cachedData) {
+    //   return cachedData;
+    // }
 
-  
-    const queryBuilder = new PrismaQueryBuilder(query)
-      .search(['materialType']) 
+    const {
+      materialType,
+      classLevel,
+      createdAt,
+      fromDate,
+      toDate,
+      page,
+      limit,
+      ...queryData
+    } = query;
+
+    const queryBuilder = new PrismaQueryBuilder(queryData)
+      .search(["description"])
       .filter()
       .sort()
       .paginate();
 
     const queryOptions = queryBuilder.build();
 
-    const {
-      materialType,
-      fromDate,
-      toDate,
-    } = query;
+    const classDistributionFilter: Prisma.ClassDistributionWhereInput = {
+      teacherId,
+    };
 
-    const extraFilter: any = {};
-
-    if (materialType) {
-      extraFilter.materialType = materialType;
+    if (typeof classLevel === "string" && classLevel.trim() !== "") {
+      classDistributionFilter.classLevel = classLevel;
     }
 
-    
-    if (fromDate || toDate) {
-      extraFilter.createdAt = {};
-
-      if (fromDate) {
-        extraFilter.createdAt.gte = new Date(fromDate as string);
-      }
-
-      if (toDate) {
-        extraFilter.createdAt.lte = new Date(toDate as string);
-      }
-    }
-
-    
-    const result = await prisma.classMaterial.findMany({
-      where: {
-        classDistributionId,
-
-        classDistributions: {
-          is: {
-            teacherId,
-          },
-        },
-
-        ...extraFilter,
-        ...queryOptions.where,
+    const whereCondition: Prisma.ClassMaterialWhereInput = {
+      classDistributionId,
+      classDistributions: {
+        is: classDistributionFilter,
       },
+    };
 
+    // Material Type Filter (Enum)
+    if (typeof materialType === "string" && materialType.trim() !== "") {
+      whereCondition.materialType = materialType as any;
+    }
+
+    // Single Date Filter
+    if (typeof createdAt === "string" && createdAt.trim() !== "") {
+      const startDate = new Date(createdAt);
+      startDate.setHours(0, 0, 0, 0);
+
+      const endDate = new Date(createdAt);
+      endDate.setHours(23, 59, 59, 999);
+
+      whereCondition.createdAt = {
+        gte: startDate,
+        lte: endDate,
+      };
+    }
+
+    // Date Range Filter
+    if (
+      !createdAt &&
+      (typeof fromDate === "string" || typeof toDate === "string")
+    ) {
+      const dateFilter: Prisma.DateTimeFilter = {};
+
+      if (typeof fromDate === "string" && fromDate.trim() !== "") {
+        const startDate = new Date(fromDate);
+        startDate.setHours(0, 0, 0, 0);
+
+        dateFilter.gte = startDate;
+      }
+
+      if (typeof toDate === "string" && toDate.trim() !== "") {
+        const endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+
+        dateFilter.lte = endDate;
+      }
+
+      whereCondition.createdAt = dateFilter;
+    }
+
+    // Merge QueryBuilder filters
+    if (
+      queryOptions.where &&
+      typeof queryOptions.where === "object" &&
+      !Array.isArray(queryOptions.where)
+    ) {
+      Object.assign(whereCondition, queryOptions.where);
+    }
+
+    const result = await prisma.classMaterial.findMany({
+      where: whereCondition,
       orderBy: queryOptions.orderBy,
-
       skip: queryOptions.skip,
       take: queryOptions.take,
-
       select: {
         id: true,
         materialType: true,
+        assignmentTitle:true ,
+        
         description: true,
         external_link: true,
         materialFiles: true,
-
         createdAt: true,
         updatedAt: true,
-
         classDistributions: {
           select: {
             id: true,
@@ -616,40 +621,29 @@ const findBySpecificTeacherClassMaterialsIntoDb = async (
       },
     });
 
-  
-    const totalMaterials = await prisma.classMaterial.count({
-      where: {
-        classDistributionId,
-
-        classDistributions: {
-          is: {
-            teacherId,
-          },
-        },
-
-        ...extraFilter,
-        ...queryOptions.where,
-      },
+    const total = await prisma.classMaterial.count({
+      where: whereCondition,
     });
 
-    // ✅ Pagination safety
-    const page = Math.max(Number(query.page) || 1, 1);
-    const limit = Math.max(Number(query.limit) || 10, 1);
+    const currentPage =
+      typeof page === "string" ? Number(page) : Number(page ?? 1);
 
-    const responseData = {
+    const currentLimit =
+      typeof limit === "string" ? Number(limit) : Number(limit ?? 10);
+
+    const response = {
       meta: {
-        page,
-        limit,
-        total: totalMaterials,
-        totalPage: Math.ceil(totalMaterials / limit),
+        page: currentPage || 1,
+        limit: currentLimit || 10,
+        total,
+        totalPage: Math.ceil(total / (currentLimit || 10)),
       },
       data: result,
     };
 
-  
-    await setCache(cacheKey, responseData, 600);
+    // await setCache(cacheKey, response, 600);
 
-    return responseData;
+    return response;
   } catch (error) {
     throw catchError(
       error,

@@ -376,16 +376,16 @@ const findMyAllClassListIntoDb = async (
         : undefined;
 
     
-    const cacheKey = `student-class-list:${userId}:${JSON.stringify(
-      query
-    )}`;
+    // const cacheKey = `student-class-list:${userId}:${JSON.stringify(
+    //   query
+    // )}`;
 
 
-    const cachedData = await getCache(cacheKey);
+    // const cachedData = await getCache(cacheKey);
 
-    if (cachedData) {
-      return cachedData;
-    }
+    // if (cachedData) {
+    //   return cachedData;
+    // }
 
 
     const searchCondition: Prisma.ClassDistributionWhereInput =
@@ -536,8 +536,7 @@ const findMyAllClassListIntoDb = async (
 
               isOnline: true,
 
-             
-
+            
               teacher: {
                 select: {
                   id: true,
@@ -579,7 +578,7 @@ const findMyAllClassListIntoDb = async (
 
 
 
-    await setCache(cacheKey, responseData, 60 * 5);
+    // await setCache(cacheKey, responseData, 60 * 5);
 
   
     return responseData;
@@ -590,10 +589,9 @@ const findMyAllClassListIntoDb = async (
 
 const findMyClassAssignmentIntoDb = async (
   userId: string,
-  query: Record<string, any>
+  query: Record<string, any>,
 ) => {
   try {
-   
     const cacheKey = `class-assignment:${userId}:${JSON.stringify(query)}`;
 
     const cachedData = await getCache(cacheKey);
@@ -601,8 +599,6 @@ const findMyClassAssignmentIntoDb = async (
     if (cachedData) {
       return cachedData;
     }
-
- 
 
     const queryBuilder = new PrismaQueryBuilder(query)
       .search(["assignmentTitle"])
@@ -613,10 +609,18 @@ const findMyClassAssignmentIntoDb = async (
 
     const queryOptions = queryBuilder.build();
 
-    const isVerified = query.isVerified;
-    const status = query.status;
-    const assignmentType = query.assignmentType;
-    const classDistributionId = query.classDistributionId;
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+
+    const {
+      isVerified,
+      status,
+      assignmentType,
+      classDistributionId,
+      classLevel,
+      assignableSubject,
+      assignmentStatus,
+    } = query;
 
     const whereCondition: any = {
       id: userId,
@@ -627,67 +631,112 @@ const findMyClassAssignmentIntoDb = async (
 
       ...(status && { status }),
 
-      ...(queryOptions.where || {}),
-
-      ...(classDistributionId && {
-        classDistributions: {
-          some: {
+      classDistributions: {
+        some: {
+          ...(classDistributionId && {
             id: classDistributionId,
-          },
+          }),
+
+          ...(classLevel && {
+            classLevel: {
+              equals: classLevel,
+              mode: "insensitive",
+            },
+          }),
+
+          ...(assignableSubject && {
+            assignableSubject: {
+              equals: assignableSubject,
+              mode: "insensitive",
+            },
+          }),
         },
-      }),
+      },
     };
 
-   
-
-    const [result, total] = await Promise.all([
+    const [students, total] = await Promise.all([
       prisma.student.findMany({
         where: whereCondition,
+
         orderBy: queryOptions.orderBy,
+
         skip: queryOptions.skip,
+
         take: queryOptions.take,
 
         select: {
           id: true,
-          
+          name: true,
 
           classDistributions: {
+            where: {
+              ...(classDistributionId && {
+                id: classDistributionId,
+              }),
+
+              ...(classLevel && {
+                classLevel: {
+                  equals: classLevel,
+                  mode: "insensitive",
+                },
+              }),
+
+              ...(assignableSubject && {
+                assignableSubject: {
+                  equals: assignableSubject,
+                  mode: "insensitive",
+                },
+              }),
+            },
+
             select: {
               id: true,
+              classLevel: true,
+              assignableSubject: true,
 
               teacher: {
                 select: {
                   teacherName: true,
+                  teacherId: true,
                   email: true,
                   phoneNumber: true,
-                  teacherId: true,
                 },
               },
 
               classAssignments: {
                 where: {
+                  isDelete: false,
+
                   ...(assignmentType && {
                     assignmentType,
                   }),
+                },
+
+                orderBy: {
+                  createdAt: "desc",
                 },
 
                 select: {
                   id: true,
                   assignmentTitle: true,
                   assignmentType: true,
-                  assessmentAvailable: true,
-                  attachmentFiles: true,
                   assignmentDueDate: true,
+                  description: true,
+                  attachmentFiles: true,
+                  assessmentAvailable: true,
                   createdAt: true,
-                  classDistributions:{
-                    select:{
-                      classLevel:true ,
-                      assignableSubject:true,
-                      
-                    }
-                  }
+
+                  submitAssignments: {
+                    where: {
+                      studentId: userId,
+                      isDelete: false,
+                    },
+
+                    select: {
+                      id: true,
+                    },
+                  },
                 },
-                
               },
             },
           },
@@ -699,26 +748,76 @@ const findMyClassAssignmentIntoDb = async (
       }),
     ]);
 
-    
+    let completed = 0;
+    let pending = 0;
+    let due = 0;
 
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 10;
+    const data = students.map((student) => ({
+      ...student,
 
-    const responseData = {
+      classDistributions: student.classDistributions.map((distribution) => ({
+        ...distribution,
+
+        classAssignments: distribution.classAssignments
+          .map((assignment) => {
+            let status = "Due";
+
+            if (assignment.submitAssignments.length > 0) {
+              status = assignment.assessmentAvailable
+                ? "Completed"
+                : "Pending";
+            }
+
+            if (status === "Completed") completed++;
+
+            if (status === "Pending") pending++;
+
+            if (status === "Due") due++;
+
+            return {
+              id: assignment.id,
+              assignmentTitle: assignment.assignmentTitle,
+              assignmentType: assignment.assignmentType,
+              assignmentDueDate: assignment.assignmentDueDate,
+              description: assignment.description,
+              attachmentFiles: assignment.attachmentFiles,
+              assessmentAvailable: assignment.assessmentAvailable,
+              createdAt: assignment.createdAt,
+              status,
+            };
+          })
+          .filter((assignment) => {
+            if (!assignmentStatus) return true;
+
+            return (
+              assignment.status.toLowerCase() ===
+              assignmentStatus.toLowerCase()
+            );
+          }),
+      })),
+    }));
+
+    const response = {
       meta: {
         page,
         limit,
         total,
         totalPage: Math.ceil(total / limit),
       },
-      data: result,
+
+      summary: {
+        total: completed + pending + due,
+        completed,
+        pending,
+        due,
+      },
+
+      data,
     };
 
-    
+    await setCache(cacheKey, response, 60 * 5);
 
-    await setCache(cacheKey, responseData, 60 * 5);
-
-    return responseData;
+    return response;
   } catch (error) {
     return catchError(error, "Error fetching class assignments");
   }

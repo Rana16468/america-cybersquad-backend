@@ -46,7 +46,7 @@ const auth = (...roles: string[]) => {
               isVerified: true,
               status: UserStatus.ACTIVE,
             },
-            select: { id: true },
+            select: { id: true, subscriptions: true },
           });
           break;
         }
@@ -54,28 +54,30 @@ const auth = (...roles: string[]) => {
         case UserRole.BRANCH_ADMIN: {
           user = await prisma.branchAdmin.findUnique({
             where: { id: verifiedUser.id },
-            select: { id: true },
+            select: { id: true , subscriptionId: true},
           });
           break;
         }
         case UserRole.STUDENT: {
 
           user=await prisma.student.findUnique({
-            where:{id:verifiedUser.id,status:UserStatus.ACTIVE, isVerified:true},
-            select:{id:true}
+            where:{id:verifiedUser.id, isVerified:true},
+            select:{id:true, subscriptionId:true}
           });
-         break;
-        }
+
+        }break;
 
         case UserRole.parent: {
 
           user=await prisma.staff.findUnique({
             where:{id:verifiedUser.id},
-            select:{id:true}
+            select:{id:true, subscriptionId:true}
           });
-     break;
-        } 
-        case UserRole.TEACHER: {
+
+        }break; 
+
+        
+       case UserRole.TEACHER: {
 
           user=await prisma.teacher.findUnique({
             where:{id:verifiedUser.id, isVerified:true, status:UserStatus.ACTIVE},
@@ -88,16 +90,7 @@ const auth = (...roles: string[]) => {
           }); 
           break;
         }
-
-        case UserRole.NURSE :{
-
-           user=await prisma.staff.findUnique({
-            where:{id:verifiedUser.id, isVerified:true, status:UserStatus.ACTIVE},
-            select:{id:true}
-          }); 
-
-         break;
-        }
+        
         
         default: {
           throw new ApiError(httpStatus.FORBIDDEN, "Invalid role!");
