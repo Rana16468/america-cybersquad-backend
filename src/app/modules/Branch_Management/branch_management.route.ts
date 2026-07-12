@@ -23,7 +23,9 @@ route.post("/forgot_password_branch_admin", validateRequest( branchManagementVal
 route.post("/verification_forgot_branch_admin", validateRequest( branchManagementValidation.branchAdminVerificationCodeSchema), BranchManagementController.verificationForgotBranchAdmin);  
 route.post("/reset_password_branch_admin", validateRequest( branchManagementValidation.resetPasswordBrachAdminSchema), BranchManagementController.resetPasswordBranchAdmin);     
 route.get("/institution_branch_options", auth(UserRole.INSTITUTIONAL_OWNER), BranchManagementController.findInstitutionBranchOptions);
-route.get("/institution_branch_stats", auth(UserRole.INSTITUTIONAL_OWNER), BranchManagementController.findInstitutionBranchStats);
+route.get("/institution_branch_stats",
+        auth(UserRole.INSTITUTIONAL_OWNER),
+         BranchManagementController.findInstitutionBranchStats);
 route.get("/institution_branches", auth(UserRole.INSTITUTIONAL_OWNER), BranchManagementController.findInstitutionBranches);
 route.post("/institution_branches", auth(UserRole.INSTITUTIONAL_OWNER), validateRequest(branchManagementValidation.createInstitutionBranchValidation), BranchManagementController.createInstitutionBranch);
 route.patch("/institution_branches/:id", auth(UserRole.INSTITUTIONAL_OWNER), validateRequest(branchManagementValidation.updateInstitutionBranchValidation), BranchManagementController.updateInstitutionBranch);
@@ -43,6 +45,16 @@ route.get("/branch_management_total_count/:subscriptionId",
       route.get("/earning_growth",
              auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER),
             BranchManagementController.earningGrowth);
+
+     route.get("/section_and_classes",
+       auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER),
+       BranchManagementController.sectionAndClasses
+
+     );
+
+     route.get("/find_by_all_subject",
+        auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER), 
+       BranchManagementController.subject)
 
             
 const branchManagement=route;

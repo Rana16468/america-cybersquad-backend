@@ -23,7 +23,6 @@ const auth = (...roles: string[]) => {
         throw new ApiError(httpStatus.UNAUTHORIZED, "You are not authorized!");
       }
 
-      // ✅ handle "Bearer token"
       const token = authHeader.startsWith("Bearer ")
         ? authHeader.split(" ")[1]
         : authHeader;
@@ -39,17 +38,28 @@ const auth = (...roles: string[]) => {
 
       switch (verifiedUser?.role) {
         case UserRole.ADMIN:
-        case UserRole.INSTITUTIONAL_OWNER: {
-          user = await prisma.user.findUnique({
-            where: {
-              id: verifiedUser.id,
-              isVerified: true,
-              status: UserStatus.ACTIVE,
-            },
-            select: { id: true, subscriptions: true },
-          });
-          break;
-        }
+    case UserRole.INSTITUTIONAL_OWNER: {
+      const result= await prisma.institutionBranch.findFirst({
+    where: {
+      userId: verifiedUser.id,
+      
+    },
+    select: {
+      userId: true,
+      subscriptionId: true,
+    },
+  });
+
+  user={
+    id: result?.userId,
+    subscriptionId: result?.subscriptionId
+  }
+
+ 
+
+  break;
+}
+
 
         case UserRole.BRANCH_ADMIN: {
           user = await prisma.branchAdmin.findUnique({
@@ -106,7 +116,7 @@ const auth = (...roles: string[]) => {
         throw new ApiError(httpStatus.FORBIDDEN, "Forbidden!");
       }
 
-      req.user = verifiedUser;
+      req.user = {...verifiedUser, ...user};
 
       next();
     } catch (err) {

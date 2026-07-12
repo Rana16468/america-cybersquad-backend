@@ -36,30 +36,24 @@ const branchAdminAuth = (...roles: string[]) => {
 
       switch (verifiedUser?.role) {
         case UserRole.ADMIN:
-        case UserRole.INSTITUTIONAL_OWNER: {
-  const result = await prisma.user.findUnique({
+    case UserRole.INSTITUTIONAL_OWNER: {
+      const result= await prisma.institutionBranch.findFirst({
     where: {
-      id: verifiedUser.id,
-      isVerified: true,
-      status: UserStatus.ACTIVE,
+      userId: verifiedUser.id,
+      
     },
     select: {
-      id: true,
-      subscriptions: {
-        select: {
-          id: true,
-        },
-        take: 1,
-      },
+      userId: true,
+      subscriptionId: true,
     },
   });
 
-  user = result
-    ? {
-        id: result.id,
-        subscriptionId: result.subscriptions[0]?.id ?? null,
-      }
-    : null;
+  user={
+    id: result?.userId,
+    subscriptionId: result?.subscriptionId
+  }
+
+ 
 
   break;
 }
@@ -119,7 +113,7 @@ const branchAdminAuth = (...roles: string[]) => {
         throw new ApiError(httpStatus.FORBIDDEN, "Forbidden!");
       }
 
-      req.user = verifiedUser;
+      req.user = {...verifiedUser, ...user};
 
       next();
     } catch (err) {

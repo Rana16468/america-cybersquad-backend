@@ -1591,7 +1591,234 @@ const earningGrowthIntoDb = async (
   }
 };
 
+const sectionAndClassesIntoDb = async (
+  subscriptionId: string,
+  query: Record<string, any>
+) => {
+  try {
+    const queryBuilder = new PrismaQueryBuilder(query)
+      .search(["classLevel", "roomNumber", "assignableSubject"])
+      .filter()
+      .sort()
+      .paginate()
+      .fields();
 
+    const queryOptions = queryBuilder.build();
+
+    const whereCondition = {
+      subscriptionId,
+      ...queryOptions.where,
+    };
+
+    const [classes, total, overview] = await Promise.all([
+      prisma.classDistribution.findMany({
+        where: whereCondition,
+        orderBy: queryOptions.orderBy,
+        skip: queryOptions.skip,
+        take: queryOptions.take,
+        select: {
+          id: true,
+          capacity: true,
+          roomNumber: true,
+          classLevel: true,
+          assignableSubject: true,
+          day: true,
+          time: true,
+          isOnline: true,
+          teacher: {
+            select: {
+              id: true,
+              teacherName: true,
+              email: true,
+              phoneNumber: true,
+            },
+          },
+        },
+      }),
+
+      prisma.classDistribution.count({
+        where: whereCondition,
+      }),
+
+      prisma.classDistribution.aggregate({
+        where: {
+          subscriptionId,
+        },
+        _sum: {
+          capacity: true,
+        },
+        _count: {
+          id: true,
+        },
+      }),
+    ]);
+
+    // Total unique sections(room)
+    const totalSections = await prisma.classDistribution.groupBy({
+      by: ["roomNumber"],
+      where: {
+        subscriptionId,
+      },
+    });
+
+    // Available Seats
+    const enrolled = await prisma.student.count({
+      where: {
+        subscriptionId,
+      },
+    });
+
+    const totalCapacity = overview._sum.capacity ?? 0;
+    const availableSeats = totalCapacity - enrolled;
+
+    return {
+      overview: {
+        totalClasses: overview._count.id,
+        totalCapacity,
+        totalSections: totalSections.length,
+        availableSeats,
+      },
+
+      meta: {
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 10,
+        total,
+        totalPage: Math.ceil(total / (Number(query.limit) || 10)),
+      },
+
+      data: classes,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
+const subjectIntoDb = async (
+  subscriptionId: string,
+  query: Record<string, any>
+) => {
+  try {
+    const queryBuilder = new PrismaQueryBuilder(query)
+      .filter()
+      .sort()
+      .paginate()
+      .fields();
+
+    const queryOptions = queryBuilder.build();
+
+    const whereCondition: any = {
+      subscriptionId,
+      ...queryOptions.where,
+    };
+
+    // Global Search
+    if (query.searchTerm) {
+      whereCondition.OR = [
+        {
+          classLevel: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          roomNumber: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          assignableSubject: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          teacher: {
+            teacherName: {
+              contains: query.searchTerm,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          teacher: {
+            branchAdmin: {
+              assignBranch: {
+                contains: query.searchTerm,
+                mode: "insensitive",
+              },
+            },
+          },
+        },
+      ];
+    }
+
+    const [classes, total, overview] = await Promise.all([
+      prisma.classDistribution.findMany({
+        where: whereCondition,
+        orderBy: queryOptions.orderBy,
+        skip: queryOptions.skip,
+        take: queryOptions.take,
+        select: {
+          id: true,
+          capacity: true,
+          roomNumber: true,
+          classLevel: true,
+          assignableSubject: true,
+          day: true,
+          time: true,
+          isOnline: true,
+
+          teacher: {
+            select: {
+              teacherId: true,
+              teacherName: true,
+              phoneNumber: true,
+
+              branchAdmin: {
+                select: {
+                  assignBranch: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      prisma.classDistribution.count({
+        where: whereCondition,
+      }),
+
+      prisma.classDistribution.aggregate({
+        where: whereCondition,
+        _count: {
+          id: true,
+        },
+        _sum: {
+          capacity: true,
+        },
+      }),
+    ]);
+
+    return {
+      overview: {
+        totalClasses: overview._count.id,
+        totalCapacity: overview._sum.capacity ?? 0,
+      },
+
+      meta: {
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 10,
+        total,
+        totalPage: Math.ceil(total / (Number(query.limit) || 10)),
+      },
+
+      data: classes,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
 
 const BranchManagementServices = {
   create_branch_admin_IntoDb,
@@ -1615,7 +1842,9 @@ const BranchManagementServices = {
        deleteInstitutionBranchIntoDb,
        branchManagementTotalCountIntoDb,
        studentGrowthIntoDb,
-       earningGrowthIntoDb
+       earningGrowthIntoDb,
+       sectionAndClassesIntoDb,
+       subjectIntoDb
 
 };
 

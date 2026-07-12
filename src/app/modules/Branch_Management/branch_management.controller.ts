@@ -293,6 +293,29 @@ const earningGrowth:RequestHandler=catchAsync(async(req , res)=>{
     message: "Successfully Find  By earning growth Growth",
     data: result,
   });
+});
+
+const sectionAndClasses:RequestHandler=catchAsync(async(req , res)=>{
+
+   const result=await BranchManagementServices.sectionAndClassesIntoDb(req.user.subscriptionId, req.query);
+sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find By Section And Classes",
+    data: result,
+  });
+
+});
+
+const subject:RequestHandler=catchAsync(async(req , res)=>{
+
+    const result=await BranchManagementServices.subjectIntoDb(req.user.subscriptionId, req.query);
+    sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find By All Subject",
+    data: result,
+  });
 })
 
 
@@ -325,7 +348,9 @@ const BranchManagementController={
      deleteInstitutionBranch,
      branchManagementTotalCount,
      studentGrowth,
-     earningGrowth
+     earningGrowth,
+     sectionAndClasses,
+     subject
 };
 
 export default BranchManagementController;
