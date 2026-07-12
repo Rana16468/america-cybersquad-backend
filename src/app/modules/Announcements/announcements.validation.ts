@@ -37,7 +37,7 @@ import { z } from "zod";
     audience: z
       .array(z.string().min(1, "Audience value cannot be empty"))
       .min(1, "At least one audience is required"),
-      subscriptionId: z.string({required_error:"subscriptionId  is required"}),
+      // subscriptionId: z.string({required_error:"subscriptionId  is required"}),
       
 
     isDelete: z.boolean().optional().default(false),

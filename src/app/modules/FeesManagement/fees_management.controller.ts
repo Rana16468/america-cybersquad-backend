@@ -115,6 +115,21 @@ const deleteFeesManuallyReceived:RequestHandler=catchAsync(async(req , res)=>{
 });
 
 
+const allBranchSpecificEarningManagement:RequestHandler=catchAsync(async(req , res)=>{
+
+  console.log({sb: req.user})
+
+    const result=await FeesManagementServices.allBranchSpecificEarningManagementIntoDb("0b2358e8-7b55-40c7-b62f-2759a8f826ca");
+    sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find My All Earning",
+    data: result,
+  });
+    
+})
+
+
 const FeesManagementController={
     recordedFeesManagement,
     findByFeesManagement,
@@ -124,7 +139,8 @@ const FeesManagementController={
     findByAllPayableFees,
       updateFeesManuallyReceived,
        findBySpecificFeesManuallyReceived,
-       deleteFeesManuallyReceived
+       deleteFeesManuallyReceived,
+       allBranchSpecificEarningManagement
 };
 
 export default FeesManagementController;

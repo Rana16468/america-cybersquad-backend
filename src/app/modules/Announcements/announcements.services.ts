@@ -451,7 +451,8 @@ const findBySpecificAnnouncementsIntoDb=async(id:string)=>{
 
 const updateAnnouncementIntoDb = async (
   id: string,
-  payload: Partial<TAnnouncements>
+  payload: Partial<TAnnouncements>,
+  subscriptionId: string
 ):Promise<{success: boolean,message: string }> => {
   try {
    
@@ -465,6 +466,7 @@ const updateAnnouncementIntoDb = async (
       where: { id },
       data: {
         ...cleanPayload,
+        subscriptionId:subscriptionId
       },
     });
 

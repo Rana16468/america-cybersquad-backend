@@ -547,6 +547,66 @@ const deleteFeesManuallyReceivedIntoDb = async (id: string) => {
   }
 };
 
+const allBranchSpecificEarningManagementIntoDb = async (
+  subscriptionId: string,
+) => {
+  try {
+    const branches = await prisma.branchAdmin.findMany({
+      where: {
+        subscriptionId,
+      },
+      select: {
+        id: true,
+        assignBranch: true,
+        students: {
+          select: {
+            studentFees: {
+              select: {
+                paidAmount: true,
+                unpaidAmount: true,
+                feesManagement: {
+                  select: {
+                    totalFees: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const result = [];
+
+    for (const branch of branches) {
+      let totalFees = 0;
+      let totalPaid = 0;
+      let totalUnpaid = 0;
+
+      for (const student of branch.students) {
+        for (const fee of student.studentFees) {
+          totalPaid += Number(fee.paidAmount ?? 0);
+          totalUnpaid += Number(fee.unpaidAmount ?? 0);
+          totalFees += Number(fee.feesManagement?.totalFees ?? 0);
+        }
+      }
+
+      result.push({
+        branchId: branch.id,
+        branchName: branch.assignBranch,
+        totalStudents: branch.students.length,
+        totalFees,
+        totalPaid,
+        totalUnpaid,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
 
 
 const FeesManagementServices = {
@@ -558,7 +618,8 @@ const FeesManagementServices = {
   findByAllPayableFeesIntoDb,
   updateFeesManuallyReceivedIntoDb,
   findBySpecificFeesManuallyReceivedIntoDb,
-  deleteFeesManuallyReceivedIntoDb
+  deleteFeesManuallyReceivedIntoDb,
+  allBranchSpecificEarningManagementIntoDb
 };
 
 export default FeesManagementServices;

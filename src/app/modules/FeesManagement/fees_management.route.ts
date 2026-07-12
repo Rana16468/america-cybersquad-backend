@@ -19,7 +19,8 @@ router.get("/find_by_specific_fees_manually_received/:id", branchAdminAuth(UserR
 
 router.patch("/update_student_fees_manually/:id", branchAdminAuth(UserRole.BRANCH_ADMIN),validateRequest(FessManagementValidation. updateStudentFeesManuallyReceivedSchema), FeesManagementController.updateFeesManuallyReceived);
 router.delete("/delete_student_fees_manually/:id", branchAdminAuth(UserRole.BRANCH_ADMIN),FeesManagementController.deleteFeesManuallyReceived );
-
+router.get("/branch_total_earning",
+branchAdminAuth(UserRole.INSTITUTIONAL_OWNER, UserRole.BRANCH_ADMIN), FeesManagementController.allBranchSpecificEarningManagement)
 const FeesManagementRouter=router;
 
 export default FeesManagementRouter;

@@ -73,7 +73,7 @@ const  findBySpecificAnnouncements:RequestHandler=catchAsync(async(req , res)=>{
 
 const  updateAnnouncement:RequestHandler=catchAsync(async(req , res)=>{
 
-  const result=await AnnouncementsServices. updateAnnouncementIntoDb(req.params.announcementId, req.body);
+  const result=await AnnouncementsServices. updateAnnouncementIntoDb(req.params.announcementId, req.body, req.user.subscriptionId);
   sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,

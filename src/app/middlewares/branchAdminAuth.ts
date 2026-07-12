@@ -42,9 +42,10 @@ const branchAdminAuth = (...roles: string[]) => {
               id: verifiedUser.id,
               isVerified: true,
               status: UserStatus.ACTIVE,
-            },
-            select: { id: true, subscriptions: true },
+            }
           });
+
+          
           break;
         }
 
