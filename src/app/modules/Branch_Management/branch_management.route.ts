@@ -54,7 +54,12 @@ route.get("/branch_management_total_count/:subscriptionId",
 
      route.get("/find_by_all_subject",
         auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER), 
-       BranchManagementController.subject)
+       BranchManagementController.subject);
+
+     route.get("/find_by_all_exam_announcement",
+       auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER), 
+       BranchManagementController.findByAllExamAnnouncement
+)
 
             
 const branchManagement=route;

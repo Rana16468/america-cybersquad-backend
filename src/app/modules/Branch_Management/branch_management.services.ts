@@ -1820,6 +1820,199 @@ const subjectIntoDb = async (
   }
 };
 
+
+const findByAllExamAnnouncementIntoDb = async (
+  subscriptionId: string,
+  query: Record<string, any>
+) => {
+  try {
+    const queryBuilder = new PrismaQueryBuilder(query)
+      .filter()
+      .sort()
+      .paginate()
+      .fields();
+
+    const queryOptions = queryBuilder.build();
+
+    const whereCondition: any = {
+      subscriptionId,
+      ...queryOptions.where,
+    };
+
+    delete whereCondition.classLevel;
+    delete whereCondition.assignableSubject;
+    delete whereCondition.roomNumber;
+    delete whereCondition.isOnline;
+
+    // Relation filters
+    if (
+      query.classLevel ||
+      query.assignableSubject ||
+      query.roomNumber ||
+      query.isOnline !== undefined
+    ) {
+      whereCondition.classDistribution = {};
+
+      if (query.classLevel) {
+        whereCondition.classDistribution.classLevel = query.classLevel;
+      }
+
+      if (query.assignableSubject) {
+        whereCondition.classDistribution.assignableSubject = {
+          contains: query.assignableSubject,
+          mode: "insensitive",
+        };
+      }
+
+      if (query.roomNumber) {
+        whereCondition.classDistribution.roomNumber = {
+          contains: query.roomNumber,
+          mode: "insensitive",
+        };
+      }
+
+      if (query.isOnline !== undefined) {
+        whereCondition.classDistribution.isOnline =
+          query.isOnline === "true";
+      }
+    }
+
+   
+    if (query.searchTerm) {
+      whereCondition.OR = [
+        {
+          examName: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          topic: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          instruction: {
+            contains: query.searchTerm,
+            mode: "insensitive",
+          },
+        },
+        {
+          classDistribution: {
+            classLevel: {
+              contains: query.searchTerm,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          classDistribution: {
+            assignableSubject: {
+              contains: query.searchTerm,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          classDistribution: {
+            roomNumber: {
+              contains: query.searchTerm,
+              mode: "insensitive",
+            },
+          },
+        },
+      ];
+    }
+
+    const today = new Date();
+
+    const [
+      exams,
+      total,
+      completedExamCount,
+      unCompletedExamCount,
+      upcomingExamCount,
+    ] = await Promise.all([
+      prisma.examAnnouncement.findMany({
+        where: whereCondition,
+        orderBy: queryOptions.orderBy,
+        skip: queryOptions.skip,
+        take: queryOptions.take,
+        select: {
+          id: true,
+          examDate: true,
+          examName: true,
+          topic: true,
+          totalMarks: true,
+          duration: true,
+          instruction: true,
+          isCompleted: true,
+
+          classDistribution: {
+            select: {
+              classLevel: true,
+              assignableSubject: true,
+              roomNumber: true,
+              isOnline: true,
+            },
+          },
+
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+
+      prisma.examAnnouncement.count({
+        where: whereCondition,
+      }),
+
+      prisma.examAnnouncement.count({
+        where: {
+          subscriptionId,
+          isCompleted: true,
+        },
+      }),
+
+      prisma.examAnnouncement.count({
+        where: {
+          subscriptionId,
+          isCompleted: false,
+        },
+      }),
+
+      prisma.examAnnouncement.count({
+        where: {
+          subscriptionId,
+          examDate: {
+            gt: today,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      overview: {
+        totalExam: total,
+        completedExam: completedExamCount,
+        unCompletedExam: unCompletedExamCount,
+        upcomingExam: upcomingExamCount,
+      },
+
+      meta: {
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 10,
+        total,
+        totalPage: Math.ceil(total / (Number(query.limit) || 10)),
+      },
+
+      data: exams,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
 const BranchManagementServices = {
   create_branch_admin_IntoDb,
    findSubscriptionBranchByIdIntoDb,
@@ -1844,7 +2037,8 @@ const BranchManagementServices = {
        studentGrowthIntoDb,
        earningGrowthIntoDb,
        sectionAndClassesIntoDb,
-       subjectIntoDb
+       subjectIntoDb,
+       findByAllExamAnnouncementIntoDb
 
 };
 

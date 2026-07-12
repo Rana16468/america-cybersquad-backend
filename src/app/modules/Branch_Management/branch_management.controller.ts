@@ -316,7 +316,20 @@ const subject:RequestHandler=catchAsync(async(req , res)=>{
     message: "Successfully Find By All Subject",
     data: result,
   });
-})
+});
+
+const findByAllExamAnnouncement:RequestHandler=catchAsync(async(req , res)=>{
+
+    const result=await BranchManagementServices.findByAllExamAnnouncementIntoDb(req.user.subscriptionId, req.query);
+    sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find By All Exam Announcement",
+    data: result,
+  });
+});
+
+
 
 
 
@@ -350,7 +363,8 @@ const BranchManagementController={
      studentGrowth,
      earningGrowth,
      sectionAndClasses,
-     subject
+     subject,
+     findByAllExamAnnouncement
 };
 
 export default BranchManagementController;
