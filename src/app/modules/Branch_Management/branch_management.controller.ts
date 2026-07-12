@@ -330,6 +330,18 @@ const findByAllExamAnnouncement:RequestHandler=catchAsync(async(req , res)=>{
 });
 
 
+const allExamResult:RequestHandler=catchAsync(async(req , res)=>{
+
+  const result=await BranchManagementServices.allExamResultIntoDb(req.user.subscriptionId, req.query);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find By All Exam Result",
+    data: result,
+  });
+})
+
+
 
 
 
@@ -364,7 +376,8 @@ const BranchManagementController={
      earningGrowth,
      sectionAndClasses,
      subject,
-     findByAllExamAnnouncement
+     findByAllExamAnnouncement,
+     allExamResult
 };
 
 export default BranchManagementController;

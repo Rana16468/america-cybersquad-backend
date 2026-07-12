@@ -59,6 +59,11 @@ route.get("/branch_management_total_count/:subscriptionId",
      route.get("/find_by_all_exam_announcement",
        auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER), 
        BranchManagementController.findByAllExamAnnouncement
+);
+
+route.get("/all_exam_result",
+       auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER),
+       BranchManagementController.allExamResult
 )
 
             

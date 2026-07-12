@@ -19,7 +19,7 @@ const recordedFeesManagement:RequestHandler=catchAsync(async(req , res)=>{
 
 const findByFeesManagement:RequestHandler=catchAsync(async(req , res)=>{
 
-  const result=await FeesManagementServices.findByFeesManagementIntoDb(req.params.subscriptionId, req.query);
+  const result=await FeesManagementServices.findByFeesManagementIntoDb(req.user.subscriptionId, req.query);
   sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,
@@ -67,7 +67,7 @@ const studentFeesManuallyReceived:RequestHandler=catchAsync(async(req , res)=>{
 
 const findByAllPayableFees:RequestHandler=catchAsync(async(req , res)=>{
 
-    const result=await FeesManagementServices. findByAllPayableFeesIntoDb(req.params.subscriptionId, req.query);
+    const result=await FeesManagementServices. findByAllPayableFeesIntoDb(req.user.subscriptionId, req.query);
 
       sendResponse(res, {
     success: true,

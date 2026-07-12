@@ -5,6 +5,7 @@ import prisma from "../../../shared/prisma";
 import { TFeesManagement, TStudentFees } from "./fees_management.interface";
 import PrismaQueryBuilder from "../../builder/PrismaQueryBuilder";
 import { searchable_fees_management } from "./fees_management.constant";
+import { PaymentStatus } from "@prisma/client";
 
 const recordedFeesManagementIntoDb = async (payload: TFeesManagement) => {
   try {
@@ -74,6 +75,7 @@ const findByFeesManagementIntoDb = async (
       select: {
         id: true,
         classLevel: true,
+
         totalFees: true,
         createdAt: true,
         updatedAt: true,
@@ -300,7 +302,12 @@ const findByAllPayableFeesIntoDb = async (
 ) => {
   try {
     const queryBuilder = new PrismaQueryBuilder(query)
-      .search([])
+      .search([
+  "student.name",
+  "student.studentId",
+  "student.className",
+  "feesManagement.classLevel",
+])
       .filter()
       .sort()
       .paginate()
@@ -308,75 +315,166 @@ const findByAllPayableFeesIntoDb = async (
 
     const queryOptions = queryBuilder.build();
 
-    const result = await prisma.studentFees.findMany({
-      where: {
-        feesManagement: {
-          subscriptionId,
-          isDelete: false,
-        },
+    const where = {
+      feesManagement: {
+        subscriptionId,
         isDelete: false,
-        ...queryOptions.where,
       },
+      isDelete: false,
+      ...queryOptions.where,
+    };
 
-      orderBy: queryOptions.orderBy,
-      skip: queryOptions.skip,
-      take: queryOptions.take,
+    const [
+      studentFees,
+      total,
+      totalCollected,
+      totalPending,
+      studentsWithDues,
+      overduePayments,
+    ] = await Promise.all([
+      prisma.studentFees.findMany({
+        where,
+        orderBy: queryOptions.orderBy,
+        skip: queryOptions.skip,
+        take: queryOptions.take,
 
-      select: {
-        id: true,
-        paidAmount: true,
-        unpaidAmount: true,
-        paymentStatus: true,
-        paymentMethod: true,
-        createdAt: true,
-        updatedAt: true,
-        student: {
-          select: {
-            studentId: true,
-            className:true,
-            name:true
-                     },
-        },
+        select: {
+          id: true,
+          paidAmount: true,
+          unpaidAmount: true,
+          paymentStatus: true,
+          paymentMethod: true,
+          createdAt: true,
+          updatedAt: true,
 
-        feesManagement: {
-          select: {
-            id: true,
-            classLevel: true,
+          paymentHistory: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+            select: {
+              createdAt: true,
+              amount: true,
+            },
+          },
 
-            totalFees: true,
+          student: {
+            select: {
+              studentId: true,
+              name: true,
+              className: true,
+            },
+          },
+
+          feesManagement: {
+            select: {
+              id: true,
+              totalFees: true,
+              classLevel: true,
+            },
           },
         },
-      },
-    });
+      }),
 
-    const total = await prisma.studentFees.count({
-      where: {
-        feesManagement: {
-          subscriptionId,
-          isDelete: false,
+      prisma.studentFees.count({
+        where,
+      }),
+
+      prisma.studentFees.aggregate({
+        where,
+        _sum: {
+          paidAmount: true,
         },
-        isDelete: false,
-        ...queryOptions.where,
-      },
-    });
+      }),
 
-    const page = Number(query?.page) || 1;
-    const limit = Number(query?.limit) || 10;
-    const totalPage = Math.ceil(total / limit);
+      prisma.studentFees.aggregate({
+        where,
+        _sum: {
+          unpaidAmount: true,
+        },
+      }),
+
+      prisma.studentFees.count({
+        where: {
+          ...where,
+          paymentStatus: {
+            in: [
+              PaymentStatus.PARTIAL,
+              PaymentStatus.UNPAID,
+            ],
+          },
+        },
+      }),
+
+      prisma.studentFees.count({
+        where: {
+          ...where,
+          paymentStatus: PaymentStatus.UNPAID,
+        },
+      }),
+    ]);
+
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
 
     return {
+      success: true,
+
       meta: {
         page,
         limit,
         total,
-        totalPage,
+        totalPage: Math.ceil(total / limit),
       },
-      data: result,
+
+      statistics: {
+        totalFeesCollected: totalCollected._sum.paidAmount ?? 0,
+        pendingPayments: totalPending._sum.unpaidAmount ?? 0,
+        studentsWithDues,
+        overduePayments,
+      },
+
+      data: studentFees.map((fee) => ({
+        id: fee.id,
+
+        student: {
+          name: fee.student.name,
+          studentId: fee.student.studentId,
+          className:
+            fee.student.className ??
+            fee.feesManagement.classLevel,
+        },
+
+        totalFees: fee.feesManagement.totalFees,
+
+        paidAmount: fee.paidAmount,
+
+        unpaidAmount: fee.unpaidAmount,
+
+        paymentStatus: fee.paymentStatus,
+
+        paymentMethod: fee.paymentMethod,
+
+        lastPayment:
+          fee.paymentHistory.length > 0
+            ? fee.paymentHistory[0].createdAt
+            : null,
+
+        lastPaymentAmount:
+          fee.paymentHistory.length > 0
+            ? fee.paymentHistory[0].amount
+            : 0,
+
+        createdAt: fee.createdAt,
+
+        updatedAt: fee.updatedAt,
+      })),
     };
   } catch (error) {
     return catchError(error);
   }
 };
+
 
 const findBySpecificFeesManuallyReceivedIntoDb=async(id:string)=>{
 

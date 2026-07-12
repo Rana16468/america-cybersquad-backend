@@ -14,6 +14,7 @@ import sendEmail from "../../../utils/sendEmail";
 import emailContext from "../../../utils/emailcontext/sendvarificationData";
 import { AttendanceStatus } from "@prisma/client";
 import { getCache, setCache } from "../../../config/redis";
+import PrismaRelationQueryBuilder from "../../builder/PrismaQueryBuilder";
 
 const formatBranchType = (type: string) => {
   const normalizedType = type.trim().toLowerCase();
@@ -2013,6 +2014,108 @@ const findByAllExamAnnouncementIntoDb = async (
   }
 };
 
+
+const allExamResultIntoDb = async (
+  subscriptionId: string,
+  query: Record<string, any>
+) => {
+  try {
+    const queryBuilder = new PrismaRelationQueryBuilder(query)
+      .search([
+        "students.name",
+        "students.studentId",
+        "students.className",
+
+        "teachers.teacherName",
+        "teachers.teacherId",
+
+        "examAnnouncement.examName",
+        "examAnnouncement.topic",
+      ])
+      .filter()
+      .sort()
+      .paginate()
+      .fields();
+
+    const { where, orderBy, skip, take } = queryBuilder.build();
+
+    const result = await prisma.examGrades.findMany({
+      where: {
+        isDelete: false,
+
+        examAnnouncement: {
+          subscriptionId,
+          isDelete: false,
+        },
+
+        ...where,
+      },
+
+      include: {
+        students: {
+          select: {
+            id: true,
+            name: true,
+            studentId: true,
+            className: true,
+          },
+        },
+
+        teachers: {
+          select: {
+            id: true,
+            teacherName: true,
+            teacherId: true,
+          },
+        },
+
+        examAnnouncement: {
+          select: {
+            id: true,
+            examName: true,
+            topic: true,
+            examDate: true,
+            totalMarks: true,
+            duration: true,
+          },
+        },
+      },
+
+      orderBy,
+      skip,
+      take,
+    });
+
+    const total = await prisma.examGrades.count({
+      where: {
+        isDelete: false,
+
+        examAnnouncement: {
+          subscriptionId,
+          isDelete: false,
+        },
+
+        ...where,
+      },
+    });
+
+    const page = Math.max(Number(query.page) || 1, 1);
+    const limit = Math.max(Number(query.limit) || 10, 1);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+        totalPage: Math.ceil(total / limit),
+      },
+      data: result,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
 const BranchManagementServices = {
   create_branch_admin_IntoDb,
    findSubscriptionBranchByIdIntoDb,
@@ -2038,7 +2141,8 @@ const BranchManagementServices = {
        earningGrowthIntoDb,
        sectionAndClassesIntoDb,
        subjectIntoDb,
-       findByAllExamAnnouncementIntoDb
+       findByAllExamAnnouncementIntoDb,
+       allExamResultIntoDb
 
 };
 
