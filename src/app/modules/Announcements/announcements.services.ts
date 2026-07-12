@@ -14,24 +14,16 @@ import { UserRole } from "@prisma/client";
 
 const sendAnnouncementsIntoDb = async (
   payload: TAnnouncements,
-  token: string
+  verifiedUser:any
 ): Promise<{ success: true; message: string }> => {
   try {
-    let verifiedUser;
+   
 
-    try {
-      verifiedUser = jwtHelpers.verifyToken(
-        token,
-        config.jwt_access_secret as Secret
-      ) as any;
-    } catch (error: any) {
-      if (error.name === "TokenExpiredError") {
-        throw new ApiError(httpStatus.UNAUTHORIZED, "Token expired");
-      }
-      throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid token");
-    }
+   
 
     const { isDelete, title, description, audience, subscriptionId } = payload;
+
+    
 
     // ✅ validation
     if (!title || !description || !subscriptionId) {

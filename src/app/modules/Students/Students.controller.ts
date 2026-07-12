@@ -21,7 +21,7 @@ const createStudent:RequestHandler = catchAsync(async (req, res) => {
 
   const findByAllStudents:RequestHandler = catchAsync(async (req, res) => {
 
-    const result = await StudentsService.findByAllStudentsIntoDb(req.user.id, req.query);   
+    const result = await StudentsService.findByAllStudentsIntoDb(req.user.id, req.user.role,  req.query);   
     sendResponse(res, {
       statusCode: httpStatus.OK,
       success: true,

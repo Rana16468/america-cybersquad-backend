@@ -9,15 +9,12 @@ import ApiError from "../../../errors/ApiErrors";
 
 const sendAnnouncements:RequestHandler=catchAsync(async(req , res)=>{
 
-    const token = req.headers.authorization;
+    
 
-if (!token) {
-  throw new ApiError(httpStatus.UNAUTHORIZED, "Authorization token missing");
-}
 
 const result = await AnnouncementsServices.sendAnnouncementsIntoDb(
   req.body,
-  token
+  req.user
 );
 
       sendResponse(res, {

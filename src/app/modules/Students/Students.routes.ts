@@ -24,7 +24,8 @@ router.post(
 
 router.get(
   "/find-specific-branch-all-students",
-  branchAdminAuth(UserRole.BRANCH_ADMIN),
+  branchAdminAuth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER),
+
   StudentsController.findByAllStudents
 );
 

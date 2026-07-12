@@ -525,10 +525,9 @@ const myProfileIntoDb = async (id: string, role: string) => {
           select: {
             name: true,
             email: true,
-            city: true,
+            city: true, 
             country: true,
             state: true,
-            schoolName: true,
             isVerified: true,
             photo: true,
             role: true,
@@ -638,32 +637,19 @@ const myProfileIntoDb = async (id: string, role: string) => {
 
 interface ProfileUpdatePayload {
   name?: string;
+  email?: string;
+  password?: string;
+
   phoneNumber?: string;
-  location?: string;
   city?: string;
   country?: string;
   address?: string;
+  schoolName?: string;
 
   // Student
   className?: string;
   guardianName?: string;
   guardianPhone?: string;
-
-  photo?: string;
-}
-
-interface ProfileUpdateResponse {
-  name: string;
-  email: string;
-  city?: string;
-  country?: string;
-  isVerified: boolean;
-  photo?: string;
-  role: string;
-  status: string;
-  createdAt: Date;
-  className?: string;
-
 }
 
 const changeMyProfileIntoDb = async (
@@ -680,6 +666,7 @@ const changeMyProfileIntoDb = async (
       city,
       country,
       address,
+      schoolName,
       className,
       guardianName,
       guardianPhone,
@@ -688,36 +675,38 @@ const changeMyProfileIntoDb = async (
     let photo: string | undefined;
 
     if (file) {
-      const { secure_url } = await uploadFile.uploadToCloudinary(file) as any;
+      const { secure_url } = (await uploadFile.uploadToCloudinary(file)) as any;
       photo = secure_url;
     }
 
     let user: any = null;
 
     switch (role) {
-      /**
-       * SUPER ADMIN / OWNER / ADMIN
-       */
+ 
       case UserRole.SUPER_ADMIN:
       case UserRole.INSTITUTIONAL_OWNER:
       case UserRole.ADMIN: {
-        const data: any = {};
-
-        if (name) data.name = name;
-        if (phoneNumber) data.phoneNumber = phoneNumber;
-        if (city) data.city = city;
-        if (country) data.country = country;
-        if (address) data.address = address;
-        if (photo) data.photo = photo;
+        const data = {
+          ...(name && { name }),
+          ...(phoneNumber && { phoneNumber }),
+          ...(city && { city }),
+          ...(country && { country }),
+          ...(address && { address }),
+          ...(schoolName && { schoolName }),
+          ...(photo && { photo }),
+        };
 
         user = await prisma.user.update({
           where: { id },
           data,
           select: {
+            id: true,
             name: true,
             email: true,
+            phoneNumber: true,
             city: true,
             country: true,
+            address: true,
             state: true,
             schoolName: true,
             isVerified: true,
@@ -731,20 +720,19 @@ const changeMyProfileIntoDb = async (
         break;
       }
 
-      /**
-       * BRANCH ADMIN
-       */
+ 
       case UserRole.BRANCH_ADMIN: {
-        const data: any = {};
-
-        if (name) data.fullName = name;
-        if (phoneNumber) data.phoneNumber = phoneNumber;
-        if (photo) data.photo = photo;
+        const data = {
+          ...(name && { fullName: name }),
+          ...(phoneNumber && { phoneNumber }),
+          ...(photo && { photo }),
+        };
 
         user = await prisma.branchAdmin.update({
           where: { id },
           data,
           select: {
+            id: true,
             fullName: true,
             emailAddress: true,
             phoneNumber: true,
@@ -760,22 +748,20 @@ const changeMyProfileIntoDb = async (
         break;
       }
 
-      /**
-       * STUDENT
-       */
       case UserRole.STUDENT: {
-        const data: any = {};
-
-        if (name) data.name = name;
-        if (className) data.className = className;
-        if (guardianName) data.guardianName = guardianName;
-        if (guardianPhone) data.guardianPhone = guardianPhone;
-        if (photo) data.photo = photo;
+        const data = {
+          ...(name && { name }),
+          ...(className && { className }),
+          ...(guardianName && { guardianName }),
+          ...(guardianPhone && { guardianPhone }),
+          ...(photo && { photo }),
+        };
 
         user = await prisma.student.update({
           where: { id },
           data,
           select: {
+            id: true,
             name: true,
             email: true,
             branchName: true,
@@ -792,21 +778,20 @@ const changeMyProfileIntoDb = async (
         break;
       }
 
-      /**
-       * TEACHER
-       */
+   
       case UserRole.TEACHER: {
-        const data: any = {};
-
-        if (name) data.teacherName = name;
-        if (phoneNumber) data.phoneNumber = phoneNumber;
-        if (address) data.address = address;
-        if (photo) data.photo = photo;
+        const data = {
+          ...(name && { teacherName: name }),
+          ...(phoneNumber && { phoneNumber }),
+          ...(address && { address }),
+          ...(photo && { photo }),
+        };
 
         user = await prisma.teacher.update({
           where: { id },
           data,
           select: {
+            id: true,
             teacherName: true,
             email: true,
             phoneNumber: true,
@@ -830,16 +815,17 @@ const changeMyProfileIntoDb = async (
        */
       case UserRole.NURSE:
       case UserRole.parent: {
-        const data: any = {};
-
-        if (name) data.name = name;
-        if (phoneNumber) data.phoneNumber = phoneNumber;
-        if (photo) data.photo = photo;
+        const data = {
+          ...(name && { name }),
+          ...(phoneNumber && { phoneNumber }),
+          ...(photo && { photo }),
+        };
 
         user = await prisma.staff.update({
           where: { id },
           data,
           select: {
+            id: true,
             name: true,
             email: true,
             role: true,
@@ -856,11 +842,19 @@ const changeMyProfileIntoDb = async (
       }
 
       default:
-        throw new ApiError(httpStatus.FORBIDDEN, "Invalid user role", "");
+        throw new ApiError(
+          httpStatus.FORBIDDEN,
+          "Invalid user role",
+          "",
+        );
     }
 
     if (!user) {
-      throw new ApiError(httpStatus.NOT_FOUND, "User not found", "");
+      throw new ApiError(
+        httpStatus.NOT_FOUND,
+        "User not found",
+        "",
+      );
     }
 
     if (!user.isVerified) {
@@ -889,6 +883,7 @@ const changeMyProfileIntoDb = async (
     throw error;
   }
 };
+
 
 const findByAllUsersAdminIntoDb = async (query: Record<string, unknown>) => {
   try {
@@ -925,10 +920,11 @@ const findByAllUsersAdminIntoDb = async (query: Record<string, unknown>) => {
         // ✅ relation filter
         ...(Object.keys(questionFilter).length > 0 && {
           questions: {
-            is: questionFilter, // ⚠️ use `is` for one-to-one
+            is: questionFilter, 
           },
         }),
       },
+      
 
       orderBy: queryOptions.orderBy,
       skip: queryOptions.skip,

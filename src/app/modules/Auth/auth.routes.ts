@@ -14,7 +14,9 @@ const router = express.Router();
 // login user
 router.post("/login",validateRequest(authValidation.LoginSchema), AuthController.loginUser);
 router.post("/refresh-token", validateRequest(authValidation.requestTokenValidationSchema), AuthController.refreshToken);
-router.get("/my-profile", auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.INSTITUTIONAL_OWNER, UserRole.BRANCH_ADMIN, UserRole.STUDENT, UserRole.parent,UserRole.TEACHER, UserRole.NURSE), AuthController.myProfile);
+router.get("/my-profile", 
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.INSTITUTIONAL_OWNER, UserRole.BRANCH_ADMIN, UserRole.STUDENT, UserRole.parent,UserRole.TEACHER, UserRole.NURSE),
+   AuthController.myProfile);
 //  updateUserZodSchema
 router.patch(
   "/update_my_profile",

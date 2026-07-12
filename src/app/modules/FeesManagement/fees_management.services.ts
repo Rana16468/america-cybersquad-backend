@@ -549,17 +549,36 @@ const deleteFeesManuallyReceivedIntoDb = async (id: string) => {
 
 const allBranchSpecificEarningManagementIntoDb = async (
   subscriptionId: string,
+  query: Record<string, unknown> = {},
 ) => {
   try {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Total Branch
+    const totalBranch = await prisma.branchAdmin.count({
+      where: {
+        subscriptionId,
+      },
+    });
+
+    // Paginated Branches
     const branches = await prisma.branchAdmin.findMany({
       where: {
         subscriptionId,
+      },
+      skip,
+      take: limit,
+      orderBy: {
+        createdAt: "desc",
       },
       select: {
         id: true,
         assignBranch: true,
         students: {
           select: {
+            id: true,
             studentFees: {
               select: {
                 paidAmount: true,
@@ -576,37 +595,93 @@ const allBranchSpecificEarningManagementIntoDb = async (
       },
     });
 
-    const result = [];
+    // Overall Summary (All Branches)
+    const allBranches = await prisma.branchAdmin.findMany({
+      where: {
+        subscriptionId,
+      },
+      select: {
+        students: {
+          select: {
+            id: true,
+            studentFees: {
+              select: {
+                paidAmount: true,
+                unpaidAmount: true,
+                feesManagement: {
+                  select: {
+                    totalFees: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
 
-    for (const branch of branches) {
+    let overallStudents = 0;
+    let overallFees = 0;
+    let overallPaid = 0;
+    let overallUnpaid = 0;
+
+    for (const branch of allBranches) {
+      overallStudents += branch.students.length;
+
+      for (const student of branch.students) {
+        for (const fee of student.studentFees) {
+          overallFees += Number(fee.feesManagement?.totalFees ?? 0);
+          overallPaid += Number(fee.paidAmount ?? 0);
+          overallUnpaid += Number(fee.unpaidAmount ?? 0);
+        }
+      }
+    }
+
+    const data = branches.map((branch) => {
       let totalFees = 0;
       let totalPaid = 0;
       let totalUnpaid = 0;
 
       for (const student of branch.students) {
         for (const fee of student.studentFees) {
+          totalFees += Number(fee.feesManagement?.totalFees ?? 0);
           totalPaid += Number(fee.paidAmount ?? 0);
           totalUnpaid += Number(fee.unpaidAmount ?? 0);
-          totalFees += Number(fee.feesManagement?.totalFees ?? 0);
         }
       }
 
-      result.push({
+      return {
         branchId: branch.id,
         branchName: branch.assignBranch,
         totalStudents: branch.students.length,
         totalFees,
         totalPaid,
         totalUnpaid,
-      });
-    }
+      };
+    });
 
-    return result;
+    return {
+      meta: {
+        page,
+        limit,
+        total: totalBranch,
+        totalPage: Math.ceil(totalBranch / limit),
+      },
+
+      overview: {
+        totalBranch,
+        totalStudents: overallStudents,
+        totalFees: overallFees,
+        totalPaid: overallPaid,
+        totalUnpaid: overallUnpaid,
+      },
+
+      data,
+    };
   } catch (error) {
     throw catchError(error);
   }
 };
-
 
 
 const FeesManagementServices = {

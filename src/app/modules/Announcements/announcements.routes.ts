@@ -8,7 +8,15 @@ import branchAdminAuth from '../../middlewares/branchAdminAuth';
 
 
 const router=express.Router();
-router.post("/send_new_announcement", validateRequest(AnnouncementsValidation.announcementsSchema), AnnouncementsController.sendAnnouncements);
+router.post("/send_new_announcement",branchAdminAuth(UserRole.ADMIN,
+       UserRole.SUPER_ADMIN,
+       UserRole.INSTITUTIONAL_OWNER, 
+      UserRole.STUDENT,
+       UserRole.TEACHER, 
+       UserRole.parent,
+        UserRole.BRANCH_ADMIN ), 
+      validateRequest(AnnouncementsValidation.announcementsSchema),
+       AnnouncementsController.sendAnnouncements);
 router.get("/find_by_announcement", AnnouncementsController.findByAnnouncement);
 router.get("/find_by_all_announcement", auth(UserRole.ADMIN, UserRole.SUPER_ADMIN), AnnouncementsController.findAllAnnouncement);
 router.get("/find_by_specific_announcement/:announcementId",branchAdminAuth(UserRole.BRANCH_ADMIN),AnnouncementsController. findBySpecificAnnouncements  );

@@ -37,17 +37,32 @@ const branchAdminAuth = (...roles: string[]) => {
       switch (verifiedUser?.role) {
         case UserRole.ADMIN:
         case UserRole.INSTITUTIONAL_OWNER: {
-          user = await prisma.user.findUnique({
-            where: {
-              id: verifiedUser.id,
-              isVerified: true,
-              status: UserStatus.ACTIVE,
-            }
-          });
+  const result = await prisma.user.findUnique({
+    where: {
+      id: verifiedUser.id,
+      isVerified: true,
+      status: UserStatus.ACTIVE,
+    },
+    select: {
+      id: true,
+      subscriptions: {
+        select: {
+          id: true,
+        },
+        take: 1,
+      },
+    },
+  });
 
-          
-          break;
-        }
+  user = result
+    ? {
+        id: result.id,
+        subscriptionId: result.subscriptions[0]?.id ?? null,
+      }
+    : null;
+
+  break;
+}
 
         case UserRole.BRANCH_ADMIN: {
           user = await prisma.branchAdmin.findUnique({

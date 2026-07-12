@@ -75,8 +75,9 @@ const createStudentIntoDb = async (
 
 
 const findByAllStudentsIntoDb = async (
-  branchAdminId: string,
-  query: Record<string, any>
+  userId: string,
+  role: string,
+  query: Record<string, any>,
 ) => {
   try {
     const queryBuilder = new PrismaQueryBuilder(query)
@@ -88,41 +89,84 @@ const findByAllStudentsIntoDb = async (
 
     const queryOptions = queryBuilder.build();
 
-    // ✅ safe extraction
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+
     const className = query.className;
     const branchName = query.branchName;
     const subscriptionId = query.subscriptionId;
 
-    // ✅ student filters
-    const studentFilter: Record<string, any> = {};
-
-    if (className) studentFilter.className = className;
-    if (branchName) studentFilter.branchName = branchName;
-
-    // ✅ subscription filter (safe)
-    const subscriptionFilter =
-      subscriptionId
-        ? {
-            id: subscriptionId,
-          }
-        : undefined;
-
-    const whereCondition: any = {
-      branchAdminId,
-
+    let whereCondition: any = {
       ...queryOptions.where,
-
-      ...(Object.keys(studentFilter).length && studentFilter),
-
-      ...(subscriptionFilter && {
-        subscription: {
-          is: subscriptionFilter,
-        },
-      }),
     };
 
-    // ✅ main query
-    const [result, total] = await Promise.all([
+    /**
+     * ==========================================
+     * Institution Owner
+     * ==========================================
+     */
+    if (role === UserRole.INSTITUTIONAL_OWNER) {
+      const branches = await prisma.institutionBranch.findMany({
+        where: {
+          userId,
+          isDeleted: false,
+        },
+        select: {
+          subscriptionId: true,
+        },
+      });
+
+      const subscriptionIds = branches
+        .map((item) => item.subscriptionId)
+        .filter((id): id is string => Boolean(id));
+
+      whereCondition.subscriptionId = {
+        in: subscriptionIds,
+      };
+    }
+
+    /**
+     * ==========================================
+     * Branch Admin
+     * ==========================================
+     */
+    else {
+      whereCondition.branchAdminId = userId;
+    }
+
+    /**
+     * ==========================================
+     * Filters
+     * ==========================================
+     */
+
+    if (subscriptionId) {
+      whereCondition.subscriptionId = subscriptionId;
+    }
+
+    if (className) {
+      whereCondition.className = {
+        contains: className,
+        mode: "insensitive",
+      };
+    }
+
+    if (branchName) {
+      whereCondition.branchAdmin = {
+        assignBranch: {
+          contains: branchName,
+          mode: "insensitive",
+        },
+      };
+    }
+
+    /**
+     * ==========================================
+     * Query
+     * ==========================================
+     */
+
+    const [students, total] = await Promise.all([
       prisma.student.findMany({
         where: whereCondition,
         orderBy: queryOptions.orderBy,
@@ -131,35 +175,35 @@ const findByAllStudentsIntoDb = async (
 
         select: {
           id: true,
+          studentId: true,
           name: true,
           email: true,
-          studentId:true , 
           branchName: true,
           className: true,
           guardianName: true,
           guardianPhone: true,
           photo: true,
           isVerified: true,
+          status: true,
           createdAt: true,
           updatedAt: true,
 
-          // ✅ FIXED subscription select
-          // subscriptions: {
-          //   select: {
-          //     id: true,
-          //     price: true,
-          //     subscriptiondetails: {
-          //       select: {
-          //         id: true,
-          //         subscriptionType: true,
-          //         schoolName: true,
-          //         city: true,
-          //         state: true,
-          //         country: true,
-          //       },
-          //     },
-          //   },
-          // },
+          branchAdmin: {
+            select: {
+              id: true,
+              fullName: true,
+              assignBranch: true,
+              phoneNumber: true,
+              emailAddress: true,
+            },
+          },
+
+          subscriptions: {
+            select: {
+              id: true,
+              price: true,
+            },
+          },
         },
       }),
 
@@ -168,9 +212,6 @@ const findByAllStudentsIntoDb = async (
       }),
     ]);
 
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 10;
-
     return {
       meta: {
         page,
@@ -178,7 +219,7 @@ const findByAllStudentsIntoDb = async (
         total,
         totalPage: Math.ceil(total / limit),
       },
-      data: result,
+      data: students,
     };
   } catch (error) {
     return catchError(error, "Error fetching students from database");
@@ -208,9 +249,9 @@ const findByAllStudents_Institutional_OwnerIntoDb = async (
     if (className) studentFilter.className = className;
     if (branchName) studentFilter.branchName = branchName;
 
-    // ❌ REMOVE duplicate subscription filter logic
+  
     const whereCondition: any = {
-      subscriptionId, // main owner filter
+      subscriptionId, 
 
       ...queryOptions.where,
 
