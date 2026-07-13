@@ -72,7 +72,7 @@ const createTeacher:RequestHandler = catchAsync(async (req, res) => {
 
             const findByAllTeachers_Institutional_Owner:RequestHandler = catchAsync(async (req, res) => {
 
-              const result = await TeacherService.findByAllTeachers_Institutional_OwnerIntoDb(req.params.subscriptionId, req.query);
+              const result = await TeacherService.findByAllTeachers_Institutional_OwnerIntoDb(req.user.subscriptionId, req.query);
                 sendResponse(res, {
                     statusCode: httpStatus.OK,
 

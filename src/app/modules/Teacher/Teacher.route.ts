@@ -44,7 +44,7 @@ router.delete(
 );
 
 router.get(
-  "/find-specific-institution-all-teachers/:subscriptionId",
+  "/find-specific-institution-all-teachers",
   auth(UserRole.INSTITUTIONAL_OWNER),
   TeacherController.findByAllTeachers_Institutional_Owner
 );

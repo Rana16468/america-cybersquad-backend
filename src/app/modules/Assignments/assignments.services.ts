@@ -9,6 +9,7 @@ import PrismaQueryBuilder from "../../builder/PrismaQueryBuilder";
 import { deleteByPattern, deleteCache, getCache, setCache } from "../../../config/redis";
 import { searchableAssignment } from "./assignments.constant";
 import { deleteFileIfExists } from "../../../utils/deleteFiles/deleteFileIfExists";
+import PrismaRelationQueryBuilder from "../../builder/PrismaQueryBuilder";
 
 
 const createAssignmentsIntoDb = async (
@@ -181,7 +182,7 @@ const findBySpecificTeacherAssignmentIntoDb = async (
       }
     }
 
-    // Relation Filter
+   
     const classDistributionFilter: Record<string, any> = {
       teacherId,
     };
@@ -808,6 +809,92 @@ const deleteClassMaterialsIntoDb = async (id: string) => {
   }
 };
 
+const submittedAssignmentListIntoDb = async (
+  classAssignmentId: string,
+  query: Record<string, any>,
+) => {
+  try {
+    const queryBuilder = new PrismaRelationQueryBuilder(query)
+      .search([
+        "student.name",
+        "student.email",
+        "student.studentId",
+      ])
+      .filter()
+      .sort()
+      .paginate()
+      .fields();
+
+    const { where, orderBy, skip, take } = queryBuilder.build();
+
+    const [result, total] = await Promise.all([
+      prisma.submitAssignment.findMany({
+        where: {
+          classAssignmentId,
+          isDelete: false,
+          ...where,
+        },
+
+        orderBy: orderBy.length
+          ? orderBy
+          : {
+              createdAt: "desc",
+            },
+
+        skip,
+        take,
+
+        select: {
+          id: true,
+          classAssignments:{
+            select:{
+              assignmentTitle: true 
+            }
+          },
+
+          student: {
+            select: {
+              id: true,
+              studentId: true,
+              name: true,
+              email: true,
+              photo: true,
+            },
+          },
+
+          uploadFiles: {
+            select: {
+              id: true,
+              fileUrl: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
+
+      prisma.submitAssignment.count({
+        where: {
+          classAssignmentId,
+          isDelete: false,
+          ...where,
+        },
+      }),
+    ]);
+
+    return {
+      meta: {
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 10,
+        total,
+        totalPage: Math.ceil(total / (Number(query.limit) || 10)),
+      },
+      data: result,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
 const AssignmentsServices={
     createAssignmentsIntoDb,
     findBySpecificTeacherAssignmentIntoDb,
@@ -818,7 +905,8 @@ const AssignmentsServices={
     findBySpecificTeacherClassMaterialsIntoDb,
     findBySpecificClassMaterialIntoDb,
     updateSpecificClassMaterialIntoDb,
-    deleteClassMaterialsIntoDb
+    deleteClassMaterialsIntoDb, 
+    submittedAssignmentListIntoDb
 };
 
 export default AssignmentsServices;

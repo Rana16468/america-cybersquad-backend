@@ -633,13 +633,13 @@ const findMyClassAssignmentIntoDb = async (
   query: Record<string, any>,
 ) => {
   try {
-    const cacheKey = `class-assignment:${userId}:${JSON.stringify(query)}`;
+    // const cacheKey = `class-assignment:${userId}:${JSON.stringify(query)}`;
 
-    const cachedData = await getCache(cacheKey);
+    // const cachedData = await getCache(cacheKey);
 
-    if (cachedData) {
-      return cachedData;
-    }
+    // if (cachedData) {
+    //   return cachedData;
+    // }
 
     const queryBuilder = new PrismaQueryBuilder(query)
       .search(["assignmentTitle"])
@@ -660,7 +660,7 @@ const findMyClassAssignmentIntoDb = async (
       classDistributionId,
       classLevel,
       assignableSubject,
-      assignmentStatus,
+      isSubmitted,
     } = query;
 
     const whereCondition: any = {
@@ -670,7 +670,9 @@ const findMyClassAssignmentIntoDb = async (
         isVerified: isVerified === "true",
       }),
 
-      ...(status && { status }),
+      ...(status && {
+        status,
+      }),
 
       classDistributions: {
         some: {
@@ -737,8 +739,8 @@ const findMyClassAssignmentIntoDb = async (
 
               teacher: {
                 select: {
-                  teacherName: true,
                   teacherId: true,
+                  teacherName: true,
                   email: true,
                   phoneNumber: true,
                 },
@@ -772,7 +774,6 @@ const findMyClassAssignmentIntoDb = async (
                       studentId: userId,
                       isDelete: false,
                     },
-
                     select: {
                       id: true,
                     },
@@ -789,9 +790,8 @@ const findMyClassAssignmentIntoDb = async (
       }),
     ]);
 
-    let completed = 0;
-    let pending = 0;
-    let due = 0;
+    let submitted = 0;
+    let notSubmitted = 0;
 
     const data = students.map((student) => ({
       ...student,
@@ -800,20 +800,25 @@ const findMyClassAssignmentIntoDb = async (
         ...distribution,
 
         classAssignments: distribution.classAssignments
-          .map((assignment) => {
-            let status = "Due";
+          .filter((assignment) => {
+            const submittedStatus =
+              assignment.submitAssignments.length > 0;
 
-            if (assignment.submitAssignments.length > 0) {
-              status = assignment.assessmentAvailable
-                ? "Completed"
-                : "Pending";
+            if (isSubmitted === undefined) {
+              return true;
             }
 
-            if (status === "Completed") completed++;
+            return submittedStatus === (isSubmitted === "true");
+          })
+          .map((assignment) => {
+            const submittedStatus =
+              assignment.submitAssignments.length > 0;
 
-            if (status === "Pending") pending++;
-
-            if (status === "Due") due++;
+            if (submittedStatus) {
+              submitted++;
+            } else {
+              notSubmitted++;
+            }
 
             return {
               id: assignment.id,
@@ -824,16 +829,10 @@ const findMyClassAssignmentIntoDb = async (
               attachmentFiles: assignment.attachmentFiles,
               assessmentAvailable: assignment.assessmentAvailable,
               createdAt: assignment.createdAt,
-              status,
-            };
-          })
-          .filter((assignment) => {
-            if (!assignmentStatus) return true;
 
-            return (
-              assignment.status.toLowerCase() ===
-              assignmentStatus.toLowerCase()
-            );
+              // Only submission status
+              isSubmitted: submittedStatus,
+            };
           }),
       })),
     }));
@@ -847,22 +846,21 @@ const findMyClassAssignmentIntoDb = async (
       },
 
       summary: {
-        total: completed + pending + due,
-        completed,
-        pending,
-        due,
+        total: submitted + notSubmitted,
+        submitted,
+        notSubmitted,
       },
 
       data,
     };
 
-    await setCache(cacheKey, response, 60 * 5);
+    // await setCache(cacheKey, response, 60 * 5);
 
     return response;
   } catch (error) {
     return catchError(error, "Error fetching class assignments");
   }
-};
+};;
 
 
 const submitAssignmentIntoDb = async (

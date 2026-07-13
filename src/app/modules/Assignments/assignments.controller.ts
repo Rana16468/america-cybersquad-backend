@@ -121,6 +121,17 @@ const deleteClassMaterials:RequestHandler=catchAsync(async(req , res)=>{
     message: result.message,
     data: result,
   });
+});
+
+const submittedAssignmentList:RequestHandler=catchAsync(async(req , res)=>{
+
+    const result=await AssignmentsServices.submittedAssignmentListIntoDb(req.params.classAssignmentId, req.query);
+     sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find By All Submitted Assignment",
+    data: result,
+  });
 })
 
 
@@ -135,7 +146,8 @@ const AssignmentsController={
     findBySpecificTeacherClassMaterials,
     findBySpecificClassMaterial,
     updateSpecificClassMaterial,
-    deleteClassMaterials
+    deleteClassMaterials, 
+    submittedAssignmentList
     
 };
 

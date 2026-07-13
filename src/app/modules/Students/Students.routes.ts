@@ -50,7 +50,8 @@ router.patch(
 );
 
 router.get("/find_my_all_class_list", branchAdminAuth(UserRole.STUDENT),StudentsController.findMyAllClassList);
-router.get("/find_my_class_assignment",branchAdminAuth(UserRole.STUDENT), StudentsController.findMyClassAssignment);
+router.get("/find_my_class_assignment",
+  branchAdminAuth(UserRole.STUDENT), StudentsController.findMyClassAssignment);
 // ================================
 // Students.routes.ts
 // ================================
