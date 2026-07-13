@@ -33,37 +33,37 @@ const sanitize = (value: unknown): unknown => {
 const requestResponseLogger = (req: Request, res: Response, next: NextFunction) => {
   const startedAt = Date.now();
 
-  logger.info(
-    {
-      type: "request",
-      req: {
-        method: req.method,
-        url: req.originalUrl,
-        ip: req.ip,
-        params: sanitize(req.params),
-        query: sanitize(req.query),
-        body: sanitize(req.body),
-      },
-    },
-    "Incoming request"
-  );
+  // logger.info(
+  //   {
+  //     type: "request",
+  //     req: {
+  //       method: req.method,
+  //       url: req.originalUrl,
+  //       ip: req.ip,
+  //       params: sanitize(req.params),
+  //       query: sanitize(req.query),
+  //       body: sanitize(req.body),
+  //     },
+  //   },
+  //   "Incoming request"
+  // );
 
   res.on("finish", () => {
-    logger.info(
-      {
-        type: "response",
-        req: {
-          method: req.method,
-          url: req.originalUrl,
-        },
-        response: {
-          statusCode: res.statusCode,
-          durationMs: Date.now() - startedAt,
-          body: sanitize(res.locals.responseBody),
-        },
-      },
-      "Outgoing response"
-    );
+    // logger.info(
+    //   {
+    //     type: "response",
+    //     req: {
+    //       method: req.method,
+    //       url: req.originalUrl,
+    //     },
+    //     response: {
+    //       statusCode: res.statusCode,
+    //       durationMs: Date.now() - startedAt,
+    //       body: sanitize(res.locals.responseBody),
+    //     },
+    //   },
+    //   "Outgoing response"
+    // );
   });
 
   next();
