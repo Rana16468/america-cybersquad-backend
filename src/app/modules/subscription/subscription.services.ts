@@ -502,20 +502,20 @@ const allSchoolListIntoDb = async (
 
 
 const STRIPE_SUBSCRIPTION_EXTENSION_MONTHS = 3;
-
+ 
 const addSubscriptionMonths = (date: Date, months: number): Date => {
   const result = new Date(date);
   result.setMonth(result.getMonth() + months);
   return result;
 };
-
+ 
 type ExistingSubscription = {
   id: string;
   userId: string;
   price: number;
   validUntil: Date | null;
 };
-
+ 
 const saveStripeSubscriptionIntoDb = async (
   userId: string,
   payload: ISubscriptions
@@ -525,9 +525,9 @@ const saveStripeSubscriptionIntoDb = async (
     const now = new Date();
     const branchCount = subscriptiondetails.length || 1;
     const pricePerBranch = price / branchCount;
-
+ 
     return await prisma.$transaction(async (tx) => {
-      // Lock latest subscription row for this user
+     
       const existingSubscriptionRaw =
         await tx.$queryRaw<ExistingSubscription[]>(Prisma.sql`
           SELECT
@@ -542,9 +542,9 @@ const saveStripeSubscriptionIntoDb = async (
           LIMIT 1
           FOR UPDATE
         `);
-
+ 
       const existingSubscription = existingSubscriptionRaw[0];
-
+ 
       /**
        * ============================================================
        * CASE 1
@@ -558,18 +558,18 @@ const saveStripeSubscriptionIntoDb = async (
             isDeleted: false,
           },
         });
-
+ 
         const hasFreeTrial = existingDetails.some(
           (item) => item.subscriptionType === "free_trial"
         );
-
+ 
         const baseDate = hasFreeTrial
           ? now
           : existingSubscription.validUntil &&
             existingSubscription.validUntil > now
           ? existingSubscription.validUntil
           : now;
-
+ 
         const updatedSubscription = await tx.subscriptions.update({
           where: { id: existingSubscription.id },
           data: {
@@ -578,6 +578,11 @@ const saveStripeSubscriptionIntoDb = async (
               baseDate,
               STRIPE_SUBSCRIPTION_EXTENSION_MONTHS
             ),
+            // Payment success hoile paymentCount 1 barbe ebong flag true hobe
+            paymentCount: {
+              increment: 1,
+            },
+            isPaymentSuccessFull: true,
             ...(hasFreeTrial && {
               subscriptiondetails: {
                 updateMany: {
@@ -591,8 +596,8 @@ const saveStripeSubscriptionIntoDb = async (
             }),
           },
         });
-
-        // যদি আগে থেকে free_trial এর InstitutionBranch থাকে, সেগুলোর status/price ও paid এ sync করা
+ 
+     
         if (hasFreeTrial) {
           await tx.institutionBranch.updateMany({
             where: {
@@ -604,7 +609,7 @@ const saveStripeSubscriptionIntoDb = async (
             },
           });
         }
-
+ 
         // ---------- Tin table distribution: নতুন কেনা branch গুলোর জন্য SubscriptionDetails + InstitutionBranch ----------
         for (const item of subscriptiondetails) {
           const createdDetail = await tx.subscriptionDetails.create({
@@ -620,7 +625,7 @@ const saveStripeSubscriptionIntoDb = async (
               studentLimit: item.studentLimit,
             },
           });
-
+ 
           await tx.institutionBranch.create({
             data: {
               userId,
@@ -633,7 +638,7 @@ const saveStripeSubscriptionIntoDb = async (
             },
           });
         }
-
+ 
         const finalSubscription = await tx.subscriptions.findUnique({
           where: { id: existingSubscription.id },
           include: {
@@ -641,7 +646,7 @@ const saveStripeSubscriptionIntoDb = async (
             institutionBranches: true,
           },
         });
-
+ 
         return {
           status: true,
           message: hasFreeTrial
@@ -650,7 +655,7 @@ const saveStripeSubscriptionIntoDb = async (
           data: finalSubscription,
         };
       }
-
+ 
       /**
        * ============================================================
        * CASE 2
@@ -666,9 +671,12 @@ const saveStripeSubscriptionIntoDb = async (
             now,
             STRIPE_SUBSCRIPTION_EXTENSION_MONTHS
           ),
+          // Payment success hoile paymentCount 1 hobe ebong flag true hobe
+          paymentCount: 1,
+          isPaymentSuccessFull: true,
         },
       });
-
+ 
       for (const item of subscriptiondetails) {
         const createdDetail = await tx.subscriptionDetails.create({
           data: {
@@ -683,7 +691,7 @@ const saveStripeSubscriptionIntoDb = async (
             studentLimit: item.studentLimit,
           },
         });
-
+ 
         await tx.institutionBranch.create({
           data: {
             userId,
@@ -696,7 +704,7 @@ const saveStripeSubscriptionIntoDb = async (
           },
         });
       }
-
+ 
       const finalSubscription = await tx.subscriptions.findUnique({
         where: { id: createdSubscription.id },
         include: {
@@ -704,7 +712,7 @@ const saveStripeSubscriptionIntoDb = async (
           institutionBranches: true,
         },
       });
-
+ 
       return {
         status: true,
         message: "New paid subscription created successfully.",
@@ -713,7 +721,7 @@ const saveStripeSubscriptionIntoDb = async (
     });
   } catch (error) {
     catchError(error);
-
+ 
     return {
       status: false,
       message:
