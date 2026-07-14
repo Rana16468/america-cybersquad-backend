@@ -953,6 +953,7 @@ const resetPasswordBranchAdminIntoDb = async (payload: {
       },
     });
 
+
     return {
       status: true,
       message: "Password reset successfully",
@@ -962,24 +963,118 @@ const resetPasswordBranchAdminIntoDb = async (payload: {
   }
 };
 
-const findInstitutionBranchOptionsIntoDb = async (userId: string) => {
-  await syncInstitutionBranchesFromSubscriptions(userId);
+const findInstitutionBranchOptionsIntoDb = async (
+  subscriptionId: string,
+  query: Record<string, any> = {},
+) => {
+  try {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-  const branches = await prisma.institutionBranch.findMany({
-    where: {
-      userId,
-      isDeleted: false,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: {
-      name: "asc",
-    },
-  });
+    const [branchDetails, totalBranches, totalTeacher, totalStudent] =
+      await Promise.all([
+        prisma.institutionBranch.findMany({
+          where: { subscriptionId, isDeleted: false },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            location: true,
+            contact: true,
+            annualPriceUsd: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
 
-  return branches;
+        prisma.institutionBranch.count({
+          where: { subscriptionId, isDeleted: false },
+        }),
+
+        prisma.teacher.count({
+          where: { subscriptionId, isDeleted: false },
+        }),
+
+        prisma.student.count({
+          where: { subscriptionId, isDeleted: false },
+        }),
+      ]);
+
+    const result = await Promise.all(
+      branchDetails.map(async (branch) => {
+        const branchName = branch.name;
+
+        const [
+          branchStudentCount,
+          branchTeacherCount,
+          totalAttendanceRecords,
+          presentAttendanceRecords,
+          feesTotals,
+        ] = await Promise.all([
+          prisma.student.count({
+            where: { subscriptionId, branchName, isDeleted: false },
+          }),
+          prisma.teacher.count({
+            where: { subscriptionId, branchName, isDeleted: false },
+          }),
+          prisma.attendanceSheet.count({
+            where: { isDelete: false, subscriptionId, students: { branchName } },
+          }),
+          prisma.attendanceSheet.count({
+            where: {
+              isDelete: false,
+              subscriptionId,
+              attendanceStatus: "PRESENT",
+              students: { branchName },
+            },
+          }),
+          prisma.studentFees.aggregate({
+            _sum: { paidAmount: true, unpaidAmount: true },
+            where: {
+              isDelete: false,
+              student: { branchName, subscriptionId },
+              feesManagement: { subscriptionId, isDelete: false },
+            },
+          }),
+        ]);
+
+        const averageAttendance =
+          totalAttendanceRecords > 0
+            ? Number(((presentAttendanceRecords / totalAttendanceRecords) * 100).toFixed(2))
+            : 0;
+
+        return {
+          id: branch.id,
+          branchName: branch.name,
+          type: branch.type,
+          location: branch.location,
+          contact: branch.contact,
+          annualFee: branch.annualPriceUsd,
+          createdAt: branch.createdAt,
+          updatedAt: branch.updatedAt,
+          statistics: {
+            totalStudent: branchStudentCount,
+            totalTeacher: branchTeacherCount,
+            averageAttendance,
+            paidFees: feesTotals._sum.paidAmount ?? 0,
+            unpaidFees: feesTotals._sum.unpaidAmount ?? 0,
+          },
+        };
+      }),
+    );
+
+    return {
+      overall: { totalTeacher, totalStudent },
+      meta: { page, limit, total: totalBranches, totalPage: Math.ceil(totalBranches / limit) },
+      data: result,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
 };
 
 const findInstitutionBranchStatsIntoDb = async (
@@ -1597,6 +1692,8 @@ const sectionAndClassesIntoDb = async (
   query: Record<string, any>
 ) => {
   try {
+    const { branchName } = query;
+
     const queryBuilder = new PrismaQueryBuilder(query)
       .search(["classLevel", "roomNumber", "assignableSubject"])
       .filter()
@@ -1608,10 +1705,16 @@ const sectionAndClassesIntoDb = async (
 
     const whereCondition = {
       subscriptionId,
+      ...(branchName ? { teacher: { branchName } } : {}),
       ...queryOptions.where,
     };
 
-    const [classes, total, overview] = await Promise.all([
+    const overviewWhere = {
+      subscriptionId,
+      ...(branchName ? { teacher: { branchName } } : {}),
+    };
+
+    const [classes, total, overview, totalEarning] = await Promise.all([
       prisma.classDistribution.findMany({
         where: whereCondition,
         orderBy: queryOptions.orderBy,
@@ -1632,6 +1735,7 @@ const sectionAndClassesIntoDb = async (
               teacherName: true,
               email: true,
               phoneNumber: true,
+              branchName: true,
             },
           },
         },
@@ -1642,9 +1746,7 @@ const sectionAndClassesIntoDb = async (
       }),
 
       prisma.classDistribution.aggregate({
-        where: {
-          subscriptionId,
-        },
+        where: overviewWhere,
         _sum: {
           capacity: true,
         },
@@ -1652,20 +1754,33 @@ const sectionAndClassesIntoDb = async (
           id: true,
         },
       }),
+
+      prisma.paymentHistory.aggregate({
+        _sum: { amount: true },
+        where: {
+          studentFees: {
+            isDelete: false,
+            student: {
+              subscriptionId,
+              ...(branchName ? { branchName } : {}),
+            },
+            feesManagement: { subscriptionId, isDelete: false },
+          },
+        },
+      }),
     ]);
 
     // Total unique sections(room)
     const totalSections = await prisma.classDistribution.groupBy({
       by: ["roomNumber"],
-      where: {
-        subscriptionId,
-      },
+      where: overviewWhere,
     });
 
     // Available Seats
     const enrolled = await prisma.student.count({
       where: {
         subscriptionId,
+        ...(branchName ? { branchName } : {}),
       },
     });
 
@@ -1678,6 +1793,7 @@ const sectionAndClassesIntoDb = async (
         totalCapacity,
         totalSections: totalSections.length,
         availableSeats,
+        totalEarning: totalEarning._sum.amount ?? 0,
       },
 
       meta: {
@@ -2116,6 +2232,47 @@ const allExamResultIntoDb = async (
   }
 };
 
+const sdf=async()=>{
+
+  console.log("dsahfklasjfkk;alsf asdkfasldkjfl;sajkfa sdkfljaslkdj")
+
+ const result=  await prisma.subscriptionDetails.create({
+    data:{
+      subscriptionId:"0b2358e8-7b55-40c7-b62f-2759a8f826ca",
+      area:"Urban",
+      city:"Thakurgoan",
+      country:"Bangladesh",
+      schoolName:"Daffodil University",
+      schoolType:"college",
+      state:"Dhaka",
+      studentLimit:"500",
+      subscriptionType:"paid",
+      schoolPhoto:"uploads/1783622404181-Staples_High_School,_Westport,_CT.jpg",
+
+      
+    }
+   })
+   await prisma.institutionBranch.create({
+    data:{
+      subscriptionDetailId:result.id,
+      subscriptionId:"0b2358e8-7b55-40c7-b62f-2759a8f826ca",
+      location:"Dhaka Bangladesh",
+      name:"Commodi esse nostrum",
+      type:"Primary School",
+     
+      userId:"aef705f9-6396-4fe1-b84f-f00cf71b578a",
+      annualPriceUsd:500,
+      contact:"01722305054"
+
+      
+    }
+
+   })
+   
+   console.log(result)
+   return result
+}
+
 const BranchManagementServices = {
   create_branch_admin_IntoDb,
    findSubscriptionBranchByIdIntoDb,
@@ -2142,7 +2299,8 @@ const BranchManagementServices = {
        sectionAndClassesIntoDb,
        subjectIntoDb,
        findByAllExamAnnouncementIntoDb,
-       allExamResultIntoDb
+       allExamResultIntoDb,
+       sdf
 
 };
 

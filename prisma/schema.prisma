@@ -240,6 +240,7 @@ model ClassDistribution {
 model Subscriptions {
   id                  String                @id @default(uuid())
   userId              String
+  validUntil          DateTime?             // <-- নতুন ফিল্ড
   price               Float                 @default(0.00)
   isDeleted           Boolean               @default(false)
   createdAt           DateTime              @default(now())

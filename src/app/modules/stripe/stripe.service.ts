@@ -174,7 +174,7 @@ const handleStripeWebhookEvent = async (
     payload: ISubscriptions;
   };
 
-  const result = await subscriptionServices.saveUserSubscriptionIntoDb(
+  const result = await subscriptionServices.saveStripeSubscriptionIntoDb(
     parsedPayload.userId,
     parsedPayload.payload
   );

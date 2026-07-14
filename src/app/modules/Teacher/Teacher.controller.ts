@@ -80,7 +80,7 @@ const createTeacher:RequestHandler = catchAsync(async (req, res) => {
                     message:"Successfully Get All Teachers",
                     data: result,
                 });
-                } );
+                });
 
 
                 const findBySpecificClassListOfTeacher:RequestHandler = catchAsync(async (req, res) => {

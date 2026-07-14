@@ -127,6 +127,18 @@ const allBranchSpecificEarningManagement:RequestHandler=catchAsync(async(req , r
     data: result,
   });
     
+});
+
+const  findBySpecificStudentFeesList:RequestHandler=catchAsync(async(req , res)=>{
+
+   const result=await FeesManagementServices.findBySpecificStudentFeesListIntoDb(req.user.id);
+
+sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Successfully Find My  Fees List",
+    data: result,
+  });
 })
 
 
@@ -140,7 +152,8 @@ const FeesManagementController={
       updateFeesManuallyReceived,
        findBySpecificFeesManuallyReceived,
        deleteFeesManuallyReceived,
-       allBranchSpecificEarningManagement
+       allBranchSpecificEarningManagement,
+       findBySpecificStudentFeesList
 };
 
 export default FeesManagementController;

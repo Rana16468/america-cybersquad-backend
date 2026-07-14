@@ -149,7 +149,7 @@ const createStudent:RequestHandler = catchAsync(async (req, res) => {
 
        const findMyClassAttendanceHistory:RequestHandler=catchAsync(async(req , res)=>{
 
-          const result=await StudentsService.findMyClassAttendanceHistoryIntoDb(req.user.id,req.params.subscriptionId, req.query );
+          const result=await StudentsService.findMyClassAttendanceHistoryIntoDb(req.user.id,req.user.subscriptionId, req.query );
           sendResponse(res, {
             statusCode: httpStatus.OK,
             success: true,
@@ -160,11 +160,22 @@ const createStudent:RequestHandler = catchAsync(async (req, res) => {
 
        const findMyClassMaterial:RequestHandler=catchAsync(async(req , res)=>{
 
-          const result=await StudentsService.findMyClassMaterialIntoDb(req.user.id,req.params.subscriptionId,req.query);
+          const result=await StudentsService.findMyClassMaterialIntoDb(req.user.id,req.user.subscriptionId,req.query);
           sendResponse(res, {
             statusCode: httpStatus.OK,
             success: true,
             message: "Successfully My All Class  Material",
+            data:result
+          });
+       });
+
+       const studentOverView:RequestHandler=catchAsync(async(req , res)=>{
+
+         const result=await StudentsService.studentOverViewIntoDb(req.user.id);
+             sendResponse(res, {
+            statusCode: httpStatus.OK,
+            success: true,
+            message: "Successfully  Find By Student Over View",
             data:result
           });
        })
@@ -194,7 +205,8 @@ const createStudent:RequestHandler = catchAsync(async (req, res) => {
     deleteSubmitAssignment,
     findMyClassSchedule,
     findMyClassAttendanceHistory,
-    findMyClassMaterial
+    findMyClassMaterial,
+    studentOverView
     
     
     

@@ -1438,17 +1438,15 @@ const findMyClassAttendanceHistoryIntoDb = async (
   query: Record<string, unknown>
 ) => {
   try {
+    // const cacheKey = `attendance-history:${studentId}:${subscriptionId}:${JSON.stringify(
+    //   query
+    // )}`;
 
+    // const cachedData = await getCache(cacheKey);
 
-    const cacheKey = `attendance-history:${studentId}:${subscriptionId}:${JSON.stringify(
-      query
-    )}`;
-
-    const cachedData = await getCache(cacheKey);
-
-    if (cachedData) {
-      return cachedData;
-    }
+    // if (cachedData) {
+    //   return cachedData;
+    // }
 
     const queryBuilder = new PrismaQueryBuilder(query)
       .search(["attendanceStatus"])
@@ -1458,6 +1456,7 @@ const findMyClassAttendanceHistoryIntoDb = async (
       .fields();
 
     const queryOptions = queryBuilder.build();
+
     const {
       attendanceStatus,
       className,
@@ -1467,8 +1466,6 @@ const findMyClassAttendanceHistoryIntoDb = async (
       page = 1,
       limit = 10,
     } = query as Record<string, string>;
-
-
 
     const whereCondition: Record<string, any> = {
       studentId,
@@ -1486,7 +1483,6 @@ const findMyClassAttendanceHistoryIntoDb = async (
               ...(startDate && {
                 gte: new Date(startDate),
               }),
-
               ...(endDate && {
                 lte: new Date(endDate),
               }),
@@ -1498,19 +1494,19 @@ const findMyClassAttendanceHistoryIntoDb = async (
         id: studentId,
         subscriptionId,
 
-        ...(className && { className }),
+        ...(className && {
+          className,
+        }),
 
-        ...(branchName && { branchName }),
+        ...(branchName && {
+          branchName,
+        }),
       },
 
       ...queryOptions.where,
     };
 
-    const [
-      attendanceHistory,
-      total,
-      groupedAttendance,
-    ] = await Promise.all([
+    const [attendanceHistory, total, groupedAttendance] = await Promise.all([
       prisma.attendanceSheet.findMany({
         where: whereCondition,
 
@@ -1525,20 +1521,10 @@ const findMyClassAttendanceHistoryIntoDb = async (
 
         select: {
           id: true,
-
           AttendanceDate: true,
-
           attendanceStatus: true,
-
           createdAt: true,
-
           updatedAt: true,
-
-          students: {
-            select: {
-              className: true,
-            },
-          },
         },
       }),
 
@@ -1560,20 +1546,16 @@ const findMyClassAttendanceHistoryIntoDb = async (
       }),
     ]);
 
-
-
     const present =
       groupedAttendance.find(
         (item) =>
-          item.attendanceStatus ===
-          AttendanceStatus.PRESENT
+          item.attendanceStatus === AttendanceStatus.PRESENT
       )?._count.attendanceStatus || 0;
 
     const absent =
       groupedAttendance.find(
         (item) =>
-          item.attendanceStatus ===
-          AttendanceStatus.ABSENT
+          item.attendanceStatus === AttendanceStatus.ABSENT
       )?._count.attendanceStatus || 0;
 
     const totalAttendance = present + absent;
@@ -1583,44 +1565,29 @@ const findMyClassAttendanceHistoryIntoDb = async (
       total: number
     ) =>
       total
-        ? Number(
-            ((value / total) * 100).toFixed(2)
-          )
+        ? Number(((value / total) * 100).toFixed(2))
         : 0;
 
     const statistics = {
       totalAttendance,
-
       present,
-
       absent,
-
-      presentPercentage:
-        calculatePercentage(
-          present,
-          totalAttendance
-        ),
-
-      absentPercentage:
-        calculatePercentage(
-          absent,
-          totalAttendance
-        ),
+      presentPercentage: calculatePercentage(
+        present,
+        totalAttendance
+      ),
+      absentPercentage: calculatePercentage(
+        absent,
+        totalAttendance
+      ),
     };
-
-
 
     const responseData = {
       meta: {
         page: Number(page),
-
         limit: Number(limit),
-
         total,
-
-        totalPage: Math.ceil(
-          total / Number(limit)
-        ),
+        totalPage: Math.ceil(total / Number(limit)),
       },
 
       statistics,
@@ -1628,13 +1595,7 @@ const findMyClassAttendanceHistoryIntoDb = async (
       data: attendanceHistory,
     };
 
-
-
-    await setCache(
-      cacheKey,
-      responseData,
-      60 * 5
-    );
+    // await setCache(cacheKey, responseData, 60 * 5);
 
     return responseData;
   } catch (error) {
@@ -1808,6 +1769,95 @@ const findMyClassMaterialIntoDb = async (
   }
 };
 
+const studentOverViewIntoDb = async (userId: string) => {
+  try {
+    const today = new Date();
+    const student = await prisma.student.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        classDistributions: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!student) {
+      throw new Error("Student not found");
+    }
+
+    const classDistributionIds = student.classDistributions.map(
+      (item) => item.id,
+    );
+
+    const [
+      upcomingExamCount,
+      pendingAssignmentCount,
+      totalAttendance,
+      presentAttendance,
+    ] = await Promise.all([
+      // Upcoming Exam Count
+      prisma.examAnnouncement.count({
+        where: {
+          classDistributionId: {
+            in: classDistributionIds,
+          },
+          examDate: {
+            gte: today,
+          },
+        },
+      }),
+      prisma.classAssignment.count({
+        where: {
+          classDistributionId: {
+            in: classDistributionIds,
+          },
+          isDelete: false,
+          submitAssignments: {
+            none: {
+              studentId: userId,
+              isDelete: false,
+            },
+          },
+        },
+      }),
+
+      // Total Attendance
+      prisma.attendanceSheet.count({
+        where: {
+          studentId: userId,
+        },
+      }),
+
+      // Present Attendance
+      prisma.attendanceSheet.count({
+        where: {
+          studentId: userId,
+          attendanceStatus: "PRESENT", 
+        },
+      }),
+    ]);
+
+    const averageAttendance =
+      totalAttendance === 0
+        ? 0
+        : Number(
+            ((presentAttendance / totalAttendance) * 100).toFixed(2),
+          );
+
+    return {
+      upcomingExamCount,
+      pendingAssignmentCount,
+      averageAttendance,
+    };
+  } catch (error) {
+    return catchError(error, "Error fetching student overview");
+  }
+};
+
 const StudentsService = {
   createStudentIntoDb,
   findByAllStudentsIntoDb,
@@ -1822,6 +1872,7 @@ const StudentsService = {
   deleteSubmitAssignmentIntoDb,
   findMyClassScheduleIntoDb,
   findMyClassAttendanceHistoryIntoDb,
-  findMyClassMaterialIntoDb
+  findMyClassMaterialIntoDb,
+  studentOverViewIntoDb
 };
 export default StudentsService;

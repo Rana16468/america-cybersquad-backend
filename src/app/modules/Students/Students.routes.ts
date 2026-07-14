@@ -164,13 +164,16 @@ router.delete("/delete_submit_assignment/:uploadFileId", auth(UserRole.STUDENT),
 
 
 router.get("/find_my_class_schedule/:subscriptionId", auth(UserRole.STUDENT),StudentsController.findMyClassSchedule);
-router.get("/find_my_class_attendance_history/:subscriptionId", 
+router.get("/find_my_class_attendance_history", 
    auth(UserRole.STUDENT), 
    StudentsController.findMyClassAttendanceHistory
 );
 
-router.get("/find_my_class_material/:subscriptionId",auth(UserRole.STUDENT), StudentsController.findMyClassMaterial);
-
+router.get("/find_my_class_material",auth(UserRole.STUDENT), StudentsController.findMyClassMaterial);
+router.get("/student_overview", 
+  auth(UserRole.STUDENT),
+  StudentsController.studentOverView
+);
 
 const  studentRoute=router;
 export default studentRoute;

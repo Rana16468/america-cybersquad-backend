@@ -7,6 +7,7 @@ import validateRequest from '../../middlewares/validateRequest';
 import branchManagementValidation from './branch_management.validation';
 import BranchManagementController from './branch_management.controller';
 import branchAdminAuth from '../../middlewares/branchAdminAuth';
+import BranchManagementServices from './branch_management.services';
 
 const route=express.Router();
 route.post("/create_branch_admin", auth(UserRole.INSTITUTIONAL_OWNER),validateRequest( branchManagementValidation.createBranchAdminValidation),BranchManagementController.create_branch_admin );
@@ -22,7 +23,10 @@ route.post("/refresh_token_branch_admin", validateRequest( branchManagementValid
 route.post("/forgot_password_branch_admin", validateRequest( branchManagementValidation. branchAdminForgotPasswordValidationSchema), BranchManagementController.forgotPasswordBranchADmin); 
 route.post("/verification_forgot_branch_admin", validateRequest( branchManagementValidation.branchAdminVerificationCodeSchema), BranchManagementController.verificationForgotBranchAdmin);  
 route.post("/reset_password_branch_admin", validateRequest( branchManagementValidation.resetPasswordBrachAdminSchema), BranchManagementController.resetPasswordBranchAdmin);     
-route.get("/institution_branch_options", auth(UserRole.INSTITUTIONAL_OWNER), BranchManagementController.findInstitutionBranchOptions);
+route.get("/institution_branch_options", 
+       auth(UserRole.INSTITUTIONAL_OWNER),
+        BranchManagementController.findInstitutionBranchOptions);
+
 route.get("/institution_branch_stats",
         auth(UserRole.INSTITUTIONAL_OWNER),
          BranchManagementController.findInstitutionBranchStats);
@@ -65,6 +69,8 @@ route.get("/all_exam_result",
        auth(UserRole.BRANCH_ADMIN, UserRole.INSTITUTIONAL_OWNER),
        BranchManagementController.allExamResult
 )
+
+// route.get("/create", BranchManagementServices.sdf)
 
             
 const branchManagement=route;

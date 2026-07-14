@@ -47,6 +47,8 @@ const hardDeleteSubscriptionById:RequestHandler=catchAsync(async(req , res)=>{
 
 const findMyAllSubscriptions:RequestHandler=catchAsync(async(req , res)=>{
 
+  console.log("user",req.user)
+
       const result=await subscriptionServices.findMyAllSubscriptionsIntoDb(req.user.id, req.query);
     sendResponse(res, {
     success: true,

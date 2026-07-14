@@ -186,7 +186,7 @@ const  resetPasswordBranchAdmin: RequestHandler = catchAsync( async (req, res) =
 });
 
 const findInstitutionBranchOptions: RequestHandler = catchAsync(async (req, res) => {
-  const result = await BranchManagementServices.findInstitutionBranchOptionsIntoDb(req.user.id);
+  const result = await BranchManagementServices.findInstitutionBranchOptionsIntoDb( req.user.subscriptionId, req.query);
 
   sendResponse(res, {
     success: true,

@@ -9,6 +9,7 @@ import { getCache, setCache } from "../../../config/redis";
 import { jwtHelpers } from "../../../helpars/jwtHelpers";
 import config from "../../../config";
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 
 
@@ -16,74 +17,88 @@ const saveUserSubscriptionIntoDb = async (
   userId: string,
   payload: ISubscriptions
 ) => {
-  try {
-    const { price, subscriptiondetails } = payload;
+  const { price, subscriptiondetails } = payload;
 
-    const isAlreadyUsedFree = await prisma.subscriptions.findFirst({
-      where: {
-        userId,
-        subscriptiondetails: {
-          some: {
-            subscriptionType: "free_trial",
-          },
+  // Check if the payload contains a free trial
+  const hasFreeTrialInPayload = subscriptiondetails.some(
+    (item) => item.subscriptionType === "free_trial"
+  );
+  const isAlreadyUsedFree = await prisma.subscriptions.findFirst({
+    where: {
+      userId,
+      subscriptiondetails: {
+        some: {
+          subscriptionType: "free_trial",
         },
       },
-    });
+    },
+  });
 
-    const hasFreeTrialInPayload = subscriptiondetails.some(
-      (item) => item.subscriptionType === "free_trial"
-    );
-
-    if (isAlreadyUsedFree && hasFreeTrialInPayload) {
-      throw new ApiError(httpStatus.FOUND, "Free trial already used");
-    }
-
-
-    const subscription = await prisma.subscriptions.create({
-      data: {
-        userId,
-        price,
-        subscriptiondetails: {
-          create: subscriptiondetails.map((item) => ({
-            subscriptionType: item.subscriptionType,
-            schoolName: item.schoolName,
-            country: item.country,
-            state: item.state,
-            city: item.city,
-            area: item.area,
-            schoolType: item.schoolType,
-            studentLimit: item.studentLimit,
-          })),
-        },
-      },
-      include: {
-        subscriptiondetails: true,
-      },
-    });
-
-    if(!subscription){
-      throw new ApiError(httpStatus.NOT_EXTENDED, 'issues by the buy section section ')
-    };
-
-
-
-    return {
-      status: true,
-      message: "Successfully Recorded",
-      price, subscriptiondetails
-    };
-  } catch (error) {
-    catchError(error);
-
-    return {
-      status: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to create subscription",
-    };
+  if (isAlreadyUsedFree && hasFreeTrialInPayload) {
+    throw new ApiError(httpStatus.CONFLICT, "Free trial already used");
   }
+
+  
+  const detailsWithIds = subscriptiondetails.map((item) => ({
+    id: randomUUID(),
+    ...item,
+  }));
+
+  
+  let validUntil: Date | null = null;
+
+  if (hasFreeTrialInPayload) {
+    validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 7); // 7 days from now
+  }
+
+  // Create subscription
+  const subscription = await prisma.subscriptions.create({
+    data: {
+      userId,
+      price,
+      validUntil,
+
+      subscriptiondetails: {
+        create: detailsWithIds.map((item) => ({
+          id: item.id,
+          subscriptionType: item.subscriptionType,
+          schoolName: item.schoolName,
+          country: item.country,
+          state: item.state,
+          city: item.city,
+          area: item.area,
+          schoolPhoto: item.schoolPhoto,
+          schoolType: item.schoolType,
+          studentLimit: item.studentLimit,
+        })),
+      },
+
+      institutionBranches: {
+        create: detailsWithIds.map((item) => ({
+          userId,
+          subscriptionDetailId: item.id,
+          name: item.schoolName,
+          type: item.schoolType,
+          location: [item.city, item.state, item.country]
+            .filter(Boolean)
+            .join(", "),
+        })),
+      },
+    },
+    include: {
+      subscriptiondetails: true,
+      institutionBranches: true,
+    },
+  });
+
+  return {
+    status: true,
+    message: "Successfully Recorded",
+    data: subscription,
+  };
 };
+
 
 const findByAllSubscriptionsAdminIntoDb = async (
   query: Record<string, any>
@@ -167,18 +182,29 @@ const findByAllSubscriptionsAdminIntoDb = async (
 
 const hardDeleteSubscriptionByIdIntoDb = async (subscriptionId: string) => {
   try {
-  
-    const deleted = await prisma.subscriptions.delete({
-      where: { id: subscriptionId },
-      include: {
-        subscriptiondetails: true,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.subscriptionDetails.deleteMany({
+        where: {
+          subscriptionId,
+        },
+      });
+
+      await tx.institutionBranch.deleteMany({
+        where: {
+          subscriptionId,
+        },
+      });
+
+      await tx.subscriptions.delete({
+        where: {
+          id: subscriptionId,
+        },
+      });
     });
 
     return {
       status: true,
-      message: "Subscription deleted permanently"
-      
+      message: "Subscription deleted permanently",
     };
   } catch (error) {
     catchError(error);
@@ -200,6 +226,8 @@ const findMyAllSubscriptionsIntoDb = async (
   query: Record<string, any>
 ) => {
   try {
+
+    console.log('userId', userId)
     const queryBuilder = new PrismaQueryBuilder(query)
       .search(["price"])
       .filter()
@@ -473,7 +501,228 @@ const allSchoolListIntoDb = async (
 };
 
 
+const STRIPE_SUBSCRIPTION_EXTENSION_MONTHS = 3;
 
+const addSubscriptionMonths = (date: Date, months: number): Date => {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+};
+
+type ExistingSubscription = {
+  id: string;
+  userId: string;
+  price: number;
+  validUntil: Date | null;
+};
+
+const saveStripeSubscriptionIntoDb = async (
+  userId: string,
+  payload: ISubscriptions
+) => {
+  try {
+    const { price, subscriptiondetails } = payload;
+    const now = new Date();
+    const branchCount = subscriptiondetails.length || 1;
+    const pricePerBranch = price / branchCount;
+
+    return await prisma.$transaction(async (tx) => {
+      // Lock latest subscription row for this user
+      const existingSubscriptionRaw =
+        await tx.$queryRaw<ExistingSubscription[]>(Prisma.sql`
+          SELECT
+            id,
+            "userId",
+            price,
+            "validUntil"
+          FROM "subscriptions"
+          WHERE "userId" = ${userId}
+            AND "isDeleted" = false
+          ORDER BY "createdAt" DESC
+          LIMIT 1
+          FOR UPDATE
+        `);
+
+      const existingSubscription = existingSubscriptionRaw[0];
+
+      /**
+       * ============================================================
+       * CASE 1
+       * User already has a subscription (Free Trial or Paid)
+       * ============================================================
+       */
+      if (existingSubscription) {
+        const existingDetails = await tx.subscriptionDetails.findMany({
+          where: {
+            subscriptionId: existingSubscription.id,
+            isDeleted: false,
+          },
+        });
+
+        const hasFreeTrial = existingDetails.some(
+          (item) => item.subscriptionType === "free_trial"
+        );
+
+        const baseDate = hasFreeTrial
+          ? now
+          : existingSubscription.validUntil &&
+            existingSubscription.validUntil > now
+          ? existingSubscription.validUntil
+          : now;
+
+        const updatedSubscription = await tx.subscriptions.update({
+          where: { id: existingSubscription.id },
+          data: {
+            price: existingSubscription.price + price,
+            validUntil: addSubscriptionMonths(
+              baseDate,
+              STRIPE_SUBSCRIPTION_EXTENSION_MONTHS
+            ),
+            ...(hasFreeTrial && {
+              subscriptiondetails: {
+                updateMany: {
+                  where: {
+                    subscriptionId: existingSubscription.id,
+                    subscriptionType: "free_trial",
+                  },
+                  data: { subscriptionType: "paid" },
+                },
+              },
+            }),
+          },
+        });
+
+        // যদি আগে থেকে free_trial এর InstitutionBranch থাকে, সেগুলোর status/price ও paid এ sync করা
+        if (hasFreeTrial) {
+          await tx.institutionBranch.updateMany({
+            where: {
+              subscriptionId: existingSubscription.id,
+              isDeleted: false,
+            },
+            data: {
+              annualPriceUsd: pricePerBranch,
+            },
+          });
+        }
+
+        // ---------- Tin table distribution: নতুন কেনা branch গুলোর জন্য SubscriptionDetails + InstitutionBranch ----------
+        for (const item of subscriptiondetails) {
+          const createdDetail = await tx.subscriptionDetails.create({
+            data: {
+              subscriptionId: existingSubscription.id,
+              subscriptionType: "paid",
+              schoolName: item.schoolName,
+              country: item.country,
+              state: item.state,
+              city: item.city,
+              area: item.area,
+              schoolType: item.schoolType,
+              studentLimit: item.studentLimit,
+            },
+          });
+
+          await tx.institutionBranch.create({
+            data: {
+              userId,
+              subscriptionId: existingSubscription.id,
+              subscriptionDetailId: createdDetail.id,
+              name: item.schoolName,
+              type: item.schoolType,
+              location: `${item.city}, ${item.state ?? ""}, ${item.country}`,
+              annualPriceUsd: pricePerBranch,
+            },
+          });
+        }
+
+        const finalSubscription = await tx.subscriptions.findUnique({
+          where: { id: existingSubscription.id },
+          include: {
+            subscriptiondetails: true,
+            institutionBranches: true,
+          },
+        });
+
+        return {
+          status: true,
+          message: hasFreeTrial
+            ? "Free trial converted to paid subscription successfully."
+            : "Subscription extended successfully.",
+          data: finalSubscription,
+        };
+      }
+
+      /**
+       * ============================================================
+       * CASE 2
+       * No subscription exists
+       * Create brand new Paid Subscription + Details + Branches
+       * ============================================================
+       */
+      const createdSubscription = await tx.subscriptions.create({
+        data: {
+          userId,
+          price,
+          validUntil: addSubscriptionMonths(
+            now,
+            STRIPE_SUBSCRIPTION_EXTENSION_MONTHS
+          ),
+        },
+      });
+
+      for (const item of subscriptiondetails) {
+        const createdDetail = await tx.subscriptionDetails.create({
+          data: {
+            subscriptionId: createdSubscription.id,
+            subscriptionType: "paid",
+            schoolName: item.schoolName,
+            country: item.country,
+            state: item.state,
+            city: item.city,
+            area: item.area,
+            schoolType: item.schoolType,
+            studentLimit: item.studentLimit,
+          },
+        });
+
+        await tx.institutionBranch.create({
+          data: {
+            userId,
+            subscriptionId: createdSubscription.id,
+            subscriptionDetailId: createdDetail.id,
+            name: item.schoolName,
+            type: item.schoolType,
+            location: `${item.city}, ${item.state ?? ""}, ${item.country}`,
+            annualPriceUsd: pricePerBranch,
+          },
+        });
+      }
+
+      const finalSubscription = await tx.subscriptions.findUnique({
+        where: { id: createdSubscription.id },
+        include: {
+          subscriptiondetails: true,
+          institutionBranches: true,
+        },
+      });
+
+      return {
+        status: true,
+        message: "New paid subscription created successfully.",
+        data: finalSubscription,
+      };
+    });
+  } catch (error) {
+    catchError(error);
+
+    return {
+      status: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to process Stripe subscription.",
+    };
+  }
+};
 
 
 
@@ -486,6 +735,7 @@ const subscriptionServices = {
    findMyPaymentStatusIntoDb,
    allCountryListIntoDb,
    allSchoolListIntoDb,
+   saveStripeSubscriptionIntoDb
    
 };
 

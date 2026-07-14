@@ -781,6 +781,89 @@ const allBranchSpecificEarningManagementIntoDb = async (
   }
 };
 
+const findBySpecificStudentFeesListIntoDb = async (
+  userId: string,
+  query: Record<string, any> = {},
+) => {
+  try {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const { searchTerm, paymentStatus, paymentMethod } = query;
+
+    const whereCondition: any = {
+      userId,
+      isDelete: false,
+      ...(paymentStatus ? { paymentStatus } : {}),
+      ...(paymentMethod ? { paymentMethod } : {}),
+      ...(searchTerm
+        ? {
+            feesManagement: {
+              classLevel: {
+                contains: searchTerm,
+                mode: "insensitive",
+              },
+            },
+          }
+        : {}),
+    };
+
+    const [studentFees, total] = await Promise.all([
+      prisma.studentFees.findMany({
+        where: whereCondition,
+        select: {
+          id: true,
+          paidAmount: true,
+          unpaidAmount: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          feesManagement: {
+            select: {
+              id: true,
+              totalFees: true,
+              classLevel: true,
+            },
+          },
+          paymentHistory: {
+            select: {
+              id: true,
+              amount: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip,
+        take: limit,
+      }),
+
+      prisma.studentFees.count({
+        where: whereCondition,
+      }),
+    ]);
+
+    return {
+      meta: {
+        page,
+        limit,
+        total,
+        totalPage: Math.ceil(total / limit),
+      },
+      data: studentFees,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
 
 const FeesManagementServices = {
   recordedFeesManagementIntoDb,
@@ -792,7 +875,8 @@ const FeesManagementServices = {
   updateFeesManuallyReceivedIntoDb,
   findBySpecificFeesManuallyReceivedIntoDb,
   deleteFeesManuallyReceivedIntoDb,
-  allBranchSpecificEarningManagementIntoDb
+  allBranchSpecificEarningManagementIntoDb,
+  findBySpecificStudentFeesListIntoDb
 };
 
 export default FeesManagementServices;
