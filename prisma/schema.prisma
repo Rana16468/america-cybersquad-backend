@@ -164,6 +164,7 @@ model Student {
   examGrades         ExamGrades[]
   healthRecords      HealthRecords[]
   scholarshipsManagement ScholarshipsManagement[]
+  optionalFees  OptionalFees[]
 
   @@index([name])
   @@index([email])
@@ -269,6 +270,7 @@ model Subscriptions {
   healthRecords       HealthRecords[]
   institutionBranches InstitutionBranch[]
   scholarshipsManagement ScholarshipsManagement[]
+  optionalFees OptionalFees[]
 
 
   @@map("subscriptions")
@@ -360,6 +362,48 @@ model ScholarshipsManagement {
    @@index([studentId])
    @@index([subscriptionId])
 
+}
+enum Category {
+  Transport 
+  Extracurricular
+  Meal 
+  Daycare
+  Other
+
+}
+enum OptionalFeesStatus {
+  Active
+  InActive
+}
+enum Frequency {
+ OneTime
+ Monthly
+ Quarterly
+ Annually 
+
+}
+
+model OptionalFees {
+   id             String        @id @default(uuid())
+   studentId      String
+   subscriptionId String
+   feesName       String
+   amount         Float?
+   category      Category @default(Other)
+   status OptionalFeesStatus @default(InActive)
+   frequency Frequency 
+   description   String?
+   additionalNote String?
+   subscriptions  Subscriptions @relation(fields: [subscriptionId], references: [id])
+   students         Student          @relation(fields: [studentId], references: [id])
+   createdAt      DateTime      @default(now())
+   updatedAt      DateTime      @updatedAt
+   
+   @@map("optional_fees")
+   @@index([studentId])
+   @@index([subscriptionId])
+
+   
 }
 
 

@@ -21,6 +21,8 @@ import nurseRoute from "../modules/nurse/nurse.route";
 import LandingPageRouter from "../modules/LandingPage/landingPage.route";
 import stripeRoute from "../modules/stripe/stripe.route";
 import ScholarshipsManagementRouter from "../modules/ScholarshipsManagement/ScholarshipsManagement.route";
+import OptionalFeesRoutes from "../modules/OptionalFees/optionalFees.route";
+
 
 
 
@@ -114,6 +116,10 @@ const moduleRoutes = [
    {
     path:"/scholarshipsManagement",
     route: ScholarshipsManagementRouter
+   },
+   {
+    path:"/optionalFees",
+    route: OptionalFeesRoutes
    }
  
 
