@@ -52,6 +52,7 @@ const findAllOptionalFeesIntoDb = async (
         frequency: true,
         description: true,
         additionalNote: true,
+        isPayment: true ,
         createdAt: true,
         updatedAt: true,
         students: {
@@ -97,6 +98,7 @@ const findSingleOptionalFeesIntoDb = async (id: string) => {
             frequency: true ,
             additionalNote:true,
             description:true ,
+            isPayment: true,
             createdAt:true ,
             updatedAt:true
             
