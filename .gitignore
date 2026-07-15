@@ -1,11 +1,11 @@
 node_modules
 dist
 .vercel
-.env
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local
 temp_auto_push.bat
 temp_interactive_push.bat
 .gitignore
+branch_structure.json
+config.bat
