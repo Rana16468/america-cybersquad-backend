@@ -394,6 +394,7 @@ model OptionalFees {
    frequency Frequency 
    description   String?
    additionalNote String?
+   isPayment       Boolean @default(false)
    subscriptions  Subscriptions @relation(fields: [subscriptionId], references: [id])
    students         Student          @relation(fields: [studentId], references: [id])
    createdAt      DateTime      @default(now())
