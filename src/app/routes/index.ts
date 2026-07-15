@@ -20,6 +20,7 @@ import ParentRouter from "../modules/Parent/parent.route";
 import nurseRoute from "../modules/nurse/nurse.route";
 import LandingPageRouter from "../modules/LandingPage/landingPage.route";
 import stripeRoute from "../modules/stripe/stripe.route";
+import ScholarshipsManagementRouter from "../modules/ScholarshipsManagement/ScholarshipsManagement.route";
 
 
 
@@ -109,6 +110,10 @@ const moduleRoutes = [
    {
     path: "/stripe",
     route: stripeRoute
+   },
+   {
+    path:"/scholarshipsManagement",
+    route: ScholarshipsManagementRouter
    }
  
 

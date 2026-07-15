@@ -163,6 +163,7 @@ model Student {
   classDistributions ClassDistribution[] @relation("ClassDistributionToStudent")
   examGrades         ExamGrades[]
   healthRecords      HealthRecords[]
+  scholarshipsManagement ScholarshipsManagement[]
 
   @@index([name])
   @@index([email])
@@ -267,6 +268,7 @@ model Subscriptions {
   examAnnouncement    ExamAnnouncement[]
   healthRecords       HealthRecords[]
   institutionBranches InstitutionBranch[]
+  scholarshipsManagement ScholarshipsManagement[]
 
 
   @@map("subscriptions")
@@ -322,6 +324,7 @@ model StudentFees {
 model FeesManagement {
   id             String        @id @default(uuid())
   totalFees      Float         @default(5000)
+  
   classLevel     String
   subscriptionId String
   isDelete       Boolean       @default(false)
@@ -334,6 +337,31 @@ model FeesManagement {
   @@index([subscriptionId])
   @@map("fees_managements")
 }
+
+enum ScholarshipsStatus {
+  Active
+  Pending
+  InActive
+}
+
+model ScholarshipsManagement {
+   id             String        @id @default(uuid())
+   studentId      String
+   subscriptionId String
+   description   String?
+   value         Float
+   startDate     DateTime
+   scholarshipsStatus ScholarshipsStatus  @default(InActive)
+   subscriptions  Subscriptions @relation(fields: [subscriptionId], references: [id])
+   students         Student          @relation(fields: [studentId], references: [id])
+   createdAt      DateTime      @default(now())
+   updatedAt      DateTime      @updatedAt
+   @@map("scholarships_management")
+   @@index([studentId])
+   @@index([subscriptionId])
+
+}
+
 
 model PaymentHistory {
   id            String      @id @default(uuid())
